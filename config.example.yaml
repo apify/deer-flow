@@ -434,6 +434,24 @@ tools:
   #   timeout_secs: 120
   #   api_key: $APIFY_API_TOKEN
 
+  # Apify async actor tools — discover/start/collect pattern for parallel actor runs
+  # - name: apify_actor_discover
+  #   group: web
+  #   use: deerflow.community.apify.tools:apify_actor_discover_tool
+  #   max_results: 10
+  #   api_key: $APIFY_API_TOKEN
+  # - name: apify_actor_start
+  #   group: web
+  #   use: deerflow.community.apify.tools:apify_actor_start_tool
+  #   # timeout_secs: 3600   # optional: override Apify platform default
+  #   # memory_mbytes: 1024  # optional: override Apify platform default
+  #   api_key: $APIFY_API_TOKEN
+  # - name: apify_actor_collect
+  #   group: web
+  #   use: deerflow.community.apify.tools:apify_actor_collect_tool
+  #   max_items: 50
+  #   api_key: $APIFY_API_TOKEN
+
   # Image search tool (uses DuckDuckGo)
   # Use this to find reference images before image generation
   - name: image_search

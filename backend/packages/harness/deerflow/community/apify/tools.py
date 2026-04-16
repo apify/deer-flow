@@ -1,10 +1,13 @@
 import json
 import os
+from concurrent.futures import ThreadPoolExecutor
 
 from apify_client import ApifyClient
 from langchain.tools import tool
 
 from deerflow.config import get_app_config
+
+TERMINAL_STATUSES = {"SUCCEEDED", "FAILED", "ABORTED", "TIMED-OUT"}
 
 
 def _get_apify_client(tool_name: str) -> ApifyClient:
@@ -133,5 +136,230 @@ def apify_actor_tool(actor_id: str, run_input: str) -> str:
 
         items = list(client.dataset(run["defaultDatasetId"]).iterate_items(limit=max_items))
         return json.dumps(items, indent=2, ensure_ascii=False)
+    except Exception as e:
+        return f"Error: {str(e)}"
+
+
+@tool("apify_actor_discover", parse_docstring=True)
+def apify_actor_discover_tool(query: str = "", actor_id: str = "") -> str:
+    """Search the Apify Store for actors, or fetch an actor's input schema.
+    Use before apify_actor_start on an unfamiliar actor to learn what input it expects.
+    Provide query to search the store, or actor_id to fetch a specific actor's schema. Not both.
+
+    Args:
+        query: Search term to find actors in the Apify Store. E.g. 'instagram scraper'.
+        actor_id: Full actor ID to fetch its input schema. E.g. 'apify/instagram-scraper'.
+    """
+    if not query and not actor_id:
+        return "Error: provide either query or actor_id, not neither"
+    if query and actor_id:
+        return "Error: provide either query or actor_id, not both"
+
+    try:
+        config = get_app_config().get_tool_config("apify_actor_discover")
+        limit = 10
+        if config is not None:
+            limit = config.model_extra.get("max_results", limit)
+
+        client = _get_apify_client("apify_actor_discover")
+
+        if query:
+            result = client.store().list(search=query, limit=limit)
+            actors = []
+            for a in result.items:
+                username = a.get("username") or ""
+                name = a.get("name") or ""
+                if not username or not name:
+                    continue
+                actors.append({
+                    "actorId": f"{username}/{name}",
+                    "title": a.get("title") or "",
+                    "description": (a.get("description") or "")[:200],
+                })
+            return json.dumps(
+                {"action": "store_search", "query": query, "count": len(actors), "actors": actors},
+                indent=2,
+                ensure_ascii=False,
+            )
+
+        if not actor_id:
+            return "Error: actor_id must not be empty"
+
+        actor = client.actor(actor_id).get()
+        if not actor:
+            return f"Error: actor '{actor_id}' not found"
+
+        input_schema = None
+        try:
+            versions = client.actor(actor_id).versions().list()
+            if versions.items:
+                latest = versions.items[-1]
+                input_schema = latest.get("inputSchema")
+        except Exception:
+            pass  # input schema is best-effort
+
+        return json.dumps(
+            {
+                "action": "actor_schema",
+                "actorId": actor_id,
+                "title": actor.get("title") or "",
+                "description": (actor.get("description") or "")[:500],
+                "inputSchema": input_schema,
+            },
+            indent=2,
+            ensure_ascii=False,
+        )
+    except Exception as e:
+        return f"Error: {str(e)}"
+
+
+@tool("apify_actor_start", parse_docstring=True)
+def apify_actor_start_tool(actor_id: str, run_input: str, label: str = "") -> str:
+    """Start an Apify actor run asynchronously and return a run reference immediately.
+    The actor runs in the background — use apify_actor_collect with the returned reference to get results.
+    To run multiple actors in parallel, call this tool once per actor, then call apify_actor_collect with all references.
+    You MUST call this tool directly when asked to start an actor — do not ask for clarification.
+
+    Args:
+        actor_id: The Apify actor ID, e.g. 'apify/instagram-scraper'. Must not be empty.
+        run_input: The actor input as a JSON-encoded string. Use "{}" for no input. E.g. '{"query": "test"}'.
+        label: Optional label to identify this run when collecting results from multiple runs.
+    """
+    if not actor_id:
+        return "Error: actor_id must not be empty"
+
+    try:
+        parsed_input = json.loads(run_input)
+    except json.JSONDecodeError as e:
+        return f"Error: run_input is not valid JSON — {str(e)}"
+
+    try:
+        config = get_app_config().get_tool_config("apify_actor_start")
+        timeout_secs = None
+        memory_mbytes = None
+        if config is not None:
+            timeout_secs = config.model_extra.get("timeout_secs")
+            memory_mbytes = config.model_extra.get("memory_mbytes")
+
+        client = _get_apify_client("apify_actor_start")
+
+        start_kwargs: dict = {"run_input": parsed_input}
+        if timeout_secs is not None:
+            start_kwargs["timeout_secs"] = timeout_secs
+        if memory_mbytes is not None:
+            start_kwargs["memory_mbytes"] = memory_mbytes
+
+        run = client.actor(actor_id).start(**start_kwargs)
+        ref: dict = {
+            "runId": run["id"],
+            "actorId": actor_id,
+            "datasetId": run["defaultDatasetId"],
+            "status": run["status"],
+        }
+        if label:
+            ref["label"] = label
+        return json.dumps({"action": "start", "runs": [ref]}, indent=2, ensure_ascii=False)
+    except Exception as e:
+        return f"Error: {str(e)}"
+
+
+@tool("apify_actor_collect", parse_docstring=True)
+def apify_actor_collect_tool(runs: str) -> str:
+    """Check the status of previously started Apify actor runs and retrieve results for completed ones.
+    Pass the run references exactly as returned by apify_actor_start (the runs array).
+    Runs still in progress are returned with pending=true — call this tool again with those refs later.
+    All runs are polled in parallel.
+
+    Args:
+        runs: JSON string of an array of run references from apify_actor_start. E.g. '[{"runId":"...","actorId":"...","datasetId":"..."}]'.
+    """
+    try:
+        run_refs = json.loads(runs)
+    except json.JSONDecodeError as e:
+        return f"Error: runs is not valid JSON — {str(e)}"
+
+    if not isinstance(run_refs, list) or not run_refs:
+        return "Error: runs must be a non-empty JSON array of run references"
+
+    try:
+        config = get_app_config().get_tool_config("apify_actor_collect")
+        max_items = 50
+        if config is not None:
+            max_items = config.model_extra.get("max_items", max_items)
+
+        client = _get_apify_client("apify_actor_collect")
+
+        def _fetch_run(ref: dict) -> dict:
+            run_id = ref.get("runId", "")
+            actor_id = ref.get("actorId", "")
+            label = ref.get("label")
+
+            try:
+                run = client.run(run_id).get()
+                if not run:
+                    entry: dict = {"runId": run_id, "actorId": actor_id, "error": "Run not found"}
+                    if label:
+                        entry["label"] = label
+                    return entry
+
+                status = run.get("status", "")
+
+                if status not in TERMINAL_STATUSES:
+                    entry = {"runId": run_id, "actorId": actor_id, "status": status, "pending": True}
+                    if label:
+                        entry["label"] = label
+                    return entry
+
+                if status != "SUCCEEDED":
+                    entry = {"runId": run_id, "actorId": actor_id, "status": status, "error": f"Run {status.lower()}"}
+                    if label:
+                        entry["label"] = label
+                    return entry
+
+                dataset_id = run.get("defaultDatasetId", "")
+                items = list(client.dataset(dataset_id).iterate_items(limit=max_items))
+                entry = {
+                    "runId": run_id,
+                    "actorId": actor_id,
+                    "datasetId": dataset_id,
+                    "status": "SUCCEEDED",
+                    "resultCount": len(items),
+                    "results": items,
+                }
+                if label:
+                    entry["label"] = label
+                return entry
+
+            except Exception as exc:
+                entry = {"runId": run_id, "actorId": actor_id, "error": str(exc)}
+                if label:
+                    entry["label"] = label
+                return entry
+
+        max_workers = min(len(run_refs), 10)
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            results = list(executor.map(_fetch_run, run_refs))
+
+        errors = [r for r in results if "error" in r]
+        pending = [r for r in results if r.get("pending") and "error" not in r]
+        completed = [r for r in results if r.get("status") == "SUCCEEDED" and "error" not in r]
+        all_done = len(pending) == 0
+
+        parts = []
+        if completed:
+            parts.append(f"{len(completed)} completed")
+        if pending:
+            parts.append(f"{len(pending)} still running")
+        if errors:
+            parts.append(f"{len(errors)} failed")
+        message = ", ".join(parts) + "." if parts else "No runs processed."
+
+        response: dict = {"action": "collect", "allDone": all_done, "message": message, "completed": completed}
+        if pending:
+            response["pending"] = pending
+        if errors:
+            response["errors"] = errors
+
+        return json.dumps(response, indent=2, ensure_ascii=False)
     except Exception as e:
         return f"Error: {str(e)}"
