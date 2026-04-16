@@ -1,7 +1,8 @@
 """Unit tests for the Apify community tools."""
 
+import asyncio
 import json
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 
 class TestWebSearchTool:
@@ -621,255 +622,205 @@ class TestApifyActorStartTool:
         assert result.startswith("Error:")
 
 
-class TestApifyActorCollectTool:
-    def _make_run_ref(self, run_id="run-123", actor_id="apify/test", dataset_id="ds-456", label=None):
-        ref = {"runId": run_id, "actorId": actor_id, "datasetId": dataset_id}
-        if label:
-            ref["label"] = label
-        return ref
+class TestApifyActorAwaitTool:
+    """Tests for apify_actor_await_tool — single async call, no agent looping."""
 
+    def _run(self, coro):
+        """Run a coroutine in a fresh event loop for test isolation."""
+        return asyncio.run(coro)
+
+    def _make_mock_writer(self):
+        writer = MagicMock()
+        return writer
+
+    @patch("deerflow.community.apify.tools.get_stream_writer")
+    @patch("deerflow.community.apify.tools.asyncio.sleep", new_callable=AsyncMock)
     @patch("deerflow.community.apify.tools.ApifyClient")
     @patch("deerflow.community.apify.tools.get_app_config")
-    def test_returns_completed_when_succeeded(self, mock_get_app_config, mock_apify_cls):
-        mock_get_app_config.return_value.get_tool_config.return_value = None
+    def test_returns_results_when_succeeded_immediately(self, mock_cfg, mock_apify_cls, mock_sleep, mock_writer):
+        mock_cfg.return_value.get_tool_config.return_value = None
         mock_apify_cls.return_value.run.return_value.get.return_value = {
-            "status": "SUCCEEDED", "defaultDatasetId": "ds-456"
+            "status": "SUCCEEDED", "defaultDatasetId": "ds-1"
         }
         mock_apify_cls.return_value.dataset.return_value.iterate_items.return_value = iter([{"item": 1}])
+        mock_writer.return_value = self._make_mock_writer()
 
-        from deerflow.community.apify.tools import apify_actor_collect_tool
+        from deerflow.community.apify.tools import apify_actor_await_tool
 
-        runs = json.dumps([self._make_run_ref()])
-        result = json.loads(apify_actor_collect_tool.invoke({"runs": runs}))
+        result = json.loads(self._run(apify_actor_await_tool.ainvoke({"run_id": "r1", "dataset_id": "ds-1"})))
 
-        assert result["allDone"] is True
-        assert len(result["completed"]) == 1
-        assert result["completed"][0]["status"] == "SUCCEEDED"
+        assert result["status"] == "SUCCEEDED"
+        assert result["resultCount"] == 1
+        assert result["results"] == [{"item": 1}]
+        mock_sleep.assert_not_called()  # finished on first check, no sleep needed
 
+    @patch("deerflow.community.apify.tools.get_stream_writer")
+    @patch("deerflow.community.apify.tools.asyncio.sleep", new_callable=AsyncMock)
     @patch("deerflow.community.apify.tools.ApifyClient")
     @patch("deerflow.community.apify.tools.get_app_config")
-    def test_results_is_list_not_string(self, mock_get_app_config, mock_apify_cls):
-        mock_get_app_config.return_value.get_tool_config.return_value = None
-        mock_apify_cls.return_value.run.return_value.get.return_value = {
-            "status": "SUCCEEDED", "defaultDatasetId": "ds-456"
-        }
-        mock_apify_cls.return_value.dataset.return_value.iterate_items.return_value = iter([{"item": 1}])
-
-        from deerflow.community.apify.tools import apify_actor_collect_tool
-
-        runs = json.dumps([self._make_run_ref()])
-        result = json.loads(apify_actor_collect_tool.invoke({"runs": runs}))
-
-        assert isinstance(result["completed"][0]["results"], list)
-
-    @patch("deerflow.community.apify.tools.ApifyClient")
-    @patch("deerflow.community.apify.tools.get_app_config")
-    def test_returns_pending_when_running(self, mock_get_app_config, mock_apify_cls):
-        mock_get_app_config.return_value.get_tool_config.return_value = None
-        mock_apify_cls.return_value.run.return_value.get.return_value = {
-            "status": "RUNNING", "defaultDatasetId": "ds-456"
-        }
-
-        from deerflow.community.apify.tools import apify_actor_collect_tool
-
-        runs = json.dumps([self._make_run_ref()])
-        result = json.loads(apify_actor_collect_tool.invoke({"runs": runs}))
-
-        assert result["allDone"] is False
-        assert len(result["pending"]) == 1
-        assert result["pending"][0]["pending"] is True
-
-    @patch("deerflow.community.apify.tools.ApifyClient")
-    @patch("deerflow.community.apify.tools.get_app_config")
-    def test_returns_error_when_failed(self, mock_get_app_config, mock_apify_cls):
-        mock_get_app_config.return_value.get_tool_config.return_value = None
-        mock_apify_cls.return_value.run.return_value.get.return_value = {
-            "status": "FAILED", "defaultDatasetId": "ds-456"
-        }
-
-        from deerflow.community.apify.tools import apify_actor_collect_tool
-
-        runs = json.dumps([self._make_run_ref()])
-        result = json.loads(apify_actor_collect_tool.invoke({"runs": runs}))
-
-        assert result["allDone"] is True
-        assert len(result["errors"]) == 1
-
-    @patch("deerflow.community.apify.tools.ApifyClient")
-    @patch("deerflow.community.apify.tools.get_app_config")
-    def test_returns_error_when_aborted(self, mock_get_app_config, mock_apify_cls):
-        mock_get_app_config.return_value.get_tool_config.return_value = None
-        mock_apify_cls.return_value.run.return_value.get.return_value = {
-            "status": "ABORTED", "defaultDatasetId": "ds-456"
-        }
-
-        from deerflow.community.apify.tools import apify_actor_collect_tool
-
-        runs = json.dumps([self._make_run_ref()])
-        result = json.loads(apify_actor_collect_tool.invoke({"runs": runs}))
-
-        assert len(result["errors"]) == 1
-
-    @patch("deerflow.community.apify.tools.ApifyClient")
-    @patch("deerflow.community.apify.tools.get_app_config")
-    def test_all_done_true_when_all_succeeded(self, mock_get_app_config, mock_apify_cls):
-        mock_get_app_config.return_value.get_tool_config.return_value = None
-        mock_apify_cls.return_value.run.return_value.get.return_value = {
-            "status": "SUCCEEDED", "defaultDatasetId": "ds-456"
-        }
+    def test_polls_until_succeeded(self, mock_cfg, mock_apify_cls, mock_sleep, mock_writer):
+        mock_cfg.return_value.get_tool_config.return_value = None
+        responses = [
+            {"status": "RUNNING", "defaultDatasetId": "ds-1"},
+            {"status": "RUNNING", "defaultDatasetId": "ds-1"},
+            {"status": "SUCCEEDED", "defaultDatasetId": "ds-1"},
+        ]
+        mock_apify_cls.return_value.run.return_value.get.side_effect = responses
         mock_apify_cls.return_value.dataset.return_value.iterate_items.return_value = iter([])
+        mock_writer.return_value = self._make_mock_writer()
 
-        from deerflow.community.apify.tools import apify_actor_collect_tool
+        from deerflow.community.apify.tools import apify_actor_await_tool
 
-        runs = json.dumps([self._make_run_ref("r1"), self._make_run_ref("r2")])
-        result = json.loads(apify_actor_collect_tool.invoke({"runs": runs}))
+        result = json.loads(self._run(apify_actor_await_tool.ainvoke({"run_id": "r1", "dataset_id": "ds-1"})))
 
-        assert result["allDone"] is True
+        assert result["status"] == "SUCCEEDED"
+        assert mock_sleep.call_count == 2  # slept after each RUNNING response
 
+    @patch("deerflow.community.apify.tools.get_stream_writer")
+    @patch("deerflow.community.apify.tools.asyncio.sleep", new_callable=AsyncMock)
     @patch("deerflow.community.apify.tools.ApifyClient")
     @patch("deerflow.community.apify.tools.get_app_config")
-    def test_message_includes_error_count(self, mock_get_app_config, mock_apify_cls):
-        mock_get_app_config.return_value.get_tool_config.return_value = None
-
-        def run_get(run_id=None):
-            m = MagicMock()
-            m.get.return_value = {"status": "FAILED", "defaultDatasetId": "ds"}
-            return m
-
-        mock_apify_cls.return_value.run.side_effect = run_get
-
-        from deerflow.community.apify.tools import apify_actor_collect_tool
-
-        runs = json.dumps([self._make_run_ref()])
-        result = json.loads(apify_actor_collect_tool.invoke({"runs": runs}))
-
-        assert "failed" in result["message"]
-
-    @patch("deerflow.community.apify.tools.ApifyClient")
-    @patch("deerflow.community.apify.tools.get_app_config")
-    def test_polls_multiple_runs(self, mock_get_app_config, mock_apify_cls):
-        mock_get_app_config.return_value.get_tool_config.return_value = None
+    def test_returns_error_when_failed(self, mock_cfg, mock_apify_cls, mock_sleep, mock_writer):
+        mock_cfg.return_value.get_tool_config.return_value = None
         mock_apify_cls.return_value.run.return_value.get.return_value = {
-            "status": "RUNNING", "defaultDatasetId": "ds"
+            "status": "FAILED", "defaultDatasetId": "ds-1"
         }
+        mock_writer.return_value = self._make_mock_writer()
 
-        from deerflow.community.apify.tools import apify_actor_collect_tool
+        from deerflow.community.apify.tools import apify_actor_await_tool
 
-        runs = json.dumps([self._make_run_ref("r1"), self._make_run_ref("r2"), self._make_run_ref("r3")])
-        apify_actor_collect_tool.invoke({"runs": runs})
+        result = json.loads(self._run(apify_actor_await_tool.ainvoke({"run_id": "r1", "dataset_id": "ds-1"})))
 
-        assert mock_apify_cls.return_value.run.call_count == 3
+        assert result["status"] == "FAILED"
+        assert "error" in result
+        mock_sleep.assert_not_called()
 
+    @patch("deerflow.community.apify.tools.get_stream_writer")
+    @patch("deerflow.community.apify.tools.asyncio.sleep", new_callable=AsyncMock)
     @patch("deerflow.community.apify.tools.ApifyClient")
     @patch("deerflow.community.apify.tools.get_app_config")
-    def test_uses_dataset_id_from_fresh_run_object(self, mock_get_app_config, mock_apify_cls):
-        mock_get_app_config.return_value.get_tool_config.return_value = None
-        mock_apify_cls.return_value.run.return_value.get.return_value = {
-            "status": "SUCCEEDED", "defaultDatasetId": "fresh-ds-id"
-        }
-        mock_apify_cls.return_value.dataset.return_value.iterate_items.return_value = iter([])
-
-        from deerflow.community.apify.tools import apify_actor_collect_tool
-
-        runs = json.dumps([self._make_run_ref(dataset_id="stale-ds-id")])
-        apify_actor_collect_tool.invoke({"runs": runs})
-
-        mock_apify_cls.return_value.dataset.assert_called_once_with("fresh-ds-id")
-
-    @patch("deerflow.community.apify.tools.ApifyClient")
-    @patch("deerflow.community.apify.tools.get_app_config")
-    def test_partial_failure_returns_partial_results(self, mock_get_app_config, mock_apify_cls):
-        mock_get_app_config.return_value.get_tool_config.return_value = None
-
-        call_count = {"n": 0}
-
-        def run_side_effect(run_id):
-            call_count["n"] += 1
-            m = MagicMock()
-            if call_count["n"] == 1:
-                m.get.side_effect = RuntimeError("network failure")
-            else:
-                m.get.return_value = {"status": "SUCCEEDED", "defaultDatasetId": "ds"}
-            return m
-
-        mock_apify_cls.return_value.run.side_effect = run_side_effect
-        mock_apify_cls.return_value.dataset.return_value.iterate_items.return_value = iter([])
-
-        from deerflow.community.apify.tools import apify_actor_collect_tool
-
-        runs = json.dumps([self._make_run_ref("r1"), self._make_run_ref("r2")])
-        result = json.loads(apify_actor_collect_tool.invoke({"runs": runs}))
-
-        assert len(result["errors"]) == 1
-        assert len(result["completed"]) == 1
-
-    @patch("deerflow.community.apify.tools.ApifyClient")
-    @patch("deerflow.community.apify.tools.get_app_config")
-    def test_run_not_found_goes_to_errors(self, mock_get_app_config, mock_apify_cls):
-        mock_get_app_config.return_value.get_tool_config.return_value = None
+    def test_returns_error_when_run_not_found(self, mock_cfg, mock_apify_cls, mock_sleep, mock_writer):
+        mock_cfg.return_value.get_tool_config.return_value = None
         mock_apify_cls.return_value.run.return_value.get.return_value = None
+        mock_writer.return_value = self._make_mock_writer()
 
-        from deerflow.community.apify.tools import apify_actor_collect_tool
+        from deerflow.community.apify.tools import apify_actor_await_tool
 
-        runs = json.dumps([self._make_run_ref()])
-        result = json.loads(apify_actor_collect_tool.invoke({"runs": runs}))
+        result = json.loads(self._run(apify_actor_await_tool.ainvoke({"run_id": "r1", "dataset_id": "ds-1"})))
 
-        assert len(result["errors"]) == 1
-        assert result["errors"][0]["error"] == "Run not found"
+        assert "error" in result
 
+    @patch("deerflow.community.apify.tools.get_stream_writer")
     @patch("deerflow.community.apify.tools.ApifyClient")
     @patch("deerflow.community.apify.tools.get_app_config")
-    def test_uses_max_items_from_config(self, mock_get_app_config, mock_apify_cls):
-        cfg = MagicMock()
-        cfg.model_extra = {"max_items": 5}
-        mock_get_app_config.return_value.get_tool_config.return_value = cfg
+    def test_returns_error_for_empty_run_id(self, mock_cfg, mock_apify_cls, mock_writer):
+        mock_cfg.return_value.get_tool_config.return_value = None
+        mock_writer.return_value = self._make_mock_writer()
+
+        from deerflow.community.apify.tools import apify_actor_await_tool
+
+        result = self._run(apify_actor_await_tool.ainvoke({"run_id": "", "dataset_id": "ds-1"}))
+
+        assert result.startswith("Error:")
+
+    @patch("deerflow.community.apify.tools.get_stream_writer")
+    @patch("deerflow.community.apify.tools.asyncio.sleep", new_callable=AsyncMock)
+    @patch("deerflow.community.apify.tools.ApifyClient")
+    @patch("deerflow.community.apify.tools.get_app_config")
+    def test_uses_fresh_dataset_id_from_run(self, mock_cfg, mock_apify_cls, mock_sleep, mock_writer):
+        """Dataset ID from the fresh run object takes precedence over the passed-in value."""
+        mock_cfg.return_value.get_tool_config.return_value = None
         mock_apify_cls.return_value.run.return_value.get.return_value = {
-            "status": "SUCCEEDED", "defaultDatasetId": "ds"
+            "status": "SUCCEEDED", "defaultDatasetId": "fresh-ds"
         }
         mock_apify_cls.return_value.dataset.return_value.iterate_items.return_value = iter([])
+        mock_writer.return_value = self._make_mock_writer()
 
-        from deerflow.community.apify.tools import apify_actor_collect_tool
+        from deerflow.community.apify.tools import apify_actor_await_tool
 
-        runs = json.dumps([self._make_run_ref()])
-        apify_actor_collect_tool.invoke({"runs": runs})
+        self._run(apify_actor_await_tool.ainvoke({"run_id": "r1", "dataset_id": "stale-ds"}))
+
+        mock_apify_cls.return_value.dataset.assert_called_with("fresh-ds")
+
+    @patch("deerflow.community.apify.tools.get_stream_writer")
+    @patch("deerflow.community.apify.tools.asyncio.sleep", new_callable=AsyncMock)
+    @patch("deerflow.community.apify.tools.ApifyClient")
+    @patch("deerflow.community.apify.tools.get_app_config")
+    def test_label_included_when_provided(self, mock_cfg, mock_apify_cls, mock_sleep, mock_writer):
+        mock_cfg.return_value.get_tool_config.return_value = None
+        mock_apify_cls.return_value.run.return_value.get.return_value = {
+            "status": "SUCCEEDED", "defaultDatasetId": "ds-1"
+        }
+        mock_apify_cls.return_value.dataset.return_value.iterate_items.return_value = iter([])
+        mock_writer.return_value = self._make_mock_writer()
+
+        from deerflow.community.apify.tools import apify_actor_await_tool
+
+        result = json.loads(self._run(apify_actor_await_tool.ainvoke({"run_id": "r1", "dataset_id": "ds-1", "label": "my-run"})))
+
+        assert result["label"] == "my-run"
+
+    @patch("deerflow.community.apify.tools.get_stream_writer")
+    @patch("deerflow.community.apify.tools.asyncio.sleep", new_callable=AsyncMock)
+    @patch("deerflow.community.apify.tools.ApifyClient")
+    @patch("deerflow.community.apify.tools.get_app_config")
+    def test_uses_config_values(self, mock_cfg, mock_apify_cls, mock_sleep, mock_writer):
+        cfg = MagicMock()
+        cfg.model_extra = {"poll_interval_secs": 10, "timeout_secs": 60, "max_items": 5}
+        mock_cfg.return_value.get_tool_config.return_value = cfg
+        mock_apify_cls.return_value.run.return_value.get.return_value = {
+            "status": "SUCCEEDED", "defaultDatasetId": "ds-1"
+        }
+        mock_apify_cls.return_value.dataset.return_value.iterate_items.return_value = iter([])
+        mock_writer.return_value = self._make_mock_writer()
+
+        from deerflow.community.apify.tools import apify_actor_await_tool
+
+        self._run(apify_actor_await_tool.ainvoke({"run_id": "r1", "dataset_id": "ds-1"}))
 
         mock_apify_cls.return_value.dataset.return_value.iterate_items.assert_called_once_with(limit=5)
 
+    @patch("deerflow.community.apify.tools.get_stream_writer")
+    @patch("deerflow.community.apify.tools.asyncio.sleep", new_callable=AsyncMock)
     @patch("deerflow.community.apify.tools.ApifyClient")
     @patch("deerflow.community.apify.tools.get_app_config")
-    def test_categories_are_mutually_exclusive(self, mock_get_app_config, mock_apify_cls):
-        mock_get_app_config.return_value.get_tool_config.return_value = None
+    def test_streams_polling_events(self, mock_cfg, mock_apify_cls, mock_sleep, mock_writer):
+        mock_cfg.return_value.get_tool_config.return_value = None
+        responses = [
+            {"status": "RUNNING", "defaultDatasetId": "ds-1"},
+            {"status": "SUCCEEDED", "defaultDatasetId": "ds-1"},
+        ]
+        mock_apify_cls.return_value.run.return_value.get.side_effect = responses
+        mock_apify_cls.return_value.dataset.return_value.iterate_items.return_value = iter([])
+        writer_fn = self._make_mock_writer()
+        mock_writer.return_value = writer_fn
+
+        from deerflow.community.apify.tools import apify_actor_await_tool
+
+        self._run(apify_actor_await_tool.ainvoke({"run_id": "r1", "dataset_id": "ds-1"}))
+
+        event_types = [call.args[0]["type"] for call in writer_fn.call_args_list]
+        assert "apify_run_polling" in event_types
+        assert "apify_run_completed" in event_types
+
+    @patch("deerflow.community.apify.tools.get_stream_writer")
+    @patch("deerflow.community.apify.tools.ApifyClient")
+    @patch("deerflow.community.apify.tools.get_app_config")
+    def test_times_out_when_deadline_exceeded(self, mock_cfg, mock_apify_cls, mock_writer):
+        """With timeout_secs=0 the deadline is start_time+0. By the time the while
+        condition is evaluated, real time has advanced past it, so the tool returns
+        TIMED_OUT without needing to patch the event loop."""
+        cfg = MagicMock()
+        cfg.model_extra = {"poll_interval_secs": 0, "timeout_secs": 0, "max_items": 50}
+        mock_cfg.return_value.get_tool_config.return_value = cfg
         mock_apify_cls.return_value.run.return_value.get.return_value = {
-            "status": "FAILED", "defaultDatasetId": "ds"
+            "status": "RUNNING", "defaultDatasetId": "ds-1"
         }
+        mock_writer.return_value = self._make_mock_writer()
 
-        from deerflow.community.apify.tools import apify_actor_collect_tool
+        from deerflow.community.apify.tools import apify_actor_await_tool
 
-        runs = json.dumps([self._make_run_ref()])
-        result = json.loads(apify_actor_collect_tool.invoke({"runs": runs}))
+        result = json.loads(self._run(apify_actor_await_tool.ainvoke({"run_id": "r1", "dataset_id": "ds-1"})))
 
-        assert len(result["errors"]) == 1
-        assert len(result["completed"]) == 0
-        assert "pending" not in result
-
-    @patch("deerflow.community.apify.tools.ApifyClient")
-    @patch("deerflow.community.apify.tools.get_app_config")
-    def test_invalid_json_runs(self, mock_get_app_config, mock_apify_cls):
-        mock_get_app_config.return_value.get_tool_config.return_value = None
-
-        from deerflow.community.apify.tools import apify_actor_collect_tool
-
-        result = apify_actor_collect_tool.invoke({"runs": "not json"})
-
-        assert "Error: runs is not valid JSON" in result
-
-    @patch("deerflow.community.apify.tools.ApifyClient")
-    @patch("deerflow.community.apify.tools.get_app_config")
-    def test_empty_array_runs(self, mock_get_app_config, mock_apify_cls):
-        mock_get_app_config.return_value.get_tool_config.return_value = None
-
-        from deerflow.community.apify.tools import apify_actor_collect_tool
-
-        result = apify_actor_collect_tool.invoke({"runs": "[]"})
-
-        assert result.startswith("Error:")
+        assert result["status"] == "TIMED_OUT"
+        assert "error" in result

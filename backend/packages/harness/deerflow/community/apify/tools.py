@@ -1,9 +1,11 @@
+import asyncio
 import json
 import os
 from concurrent.futures import ThreadPoolExecutor
 
 from apify_client import ApifyClient
 from langchain.tools import tool
+from langgraph.config import get_stream_writer
 
 from deerflow.config import get_app_config
 
@@ -216,8 +218,8 @@ def apify_actor_discover_tool(query: str = "", actor_id: str = "") -> str:
 @tool("apify_actor_start", parse_docstring=True)
 def apify_actor_start_tool(actor_id: str, run_input: str, label: str = "") -> str:
     """Start an Apify actor run asynchronously and return a run reference immediately.
-    The actor runs in the background — use apify_actor_collect with the returned reference to get results.
-    To run multiple actors in parallel, call this tool once per actor, then call apify_actor_collect with all references.
+    The actor runs in the background — use apify_actor_await with the returned runId and datasetId to wait for results.
+    To run multiple actors in parallel, call this tool once per actor, then call apify_actor_await for each run.
     You MUST call this tool directly when asked to start an actor — do not ask for clarification.
 
     Args:
@@ -363,3 +365,75 @@ def apify_actor_collect_tool(runs: str) -> str:
         return json.dumps(response, indent=2, ensure_ascii=False)
     except Exception as e:
         return f"Error: {str(e)}"
+
+
+@tool("apify_actor_await", parse_docstring=True)
+async def apify_actor_await_tool(run_id: str, dataset_id: str, label: str = "") -> str:
+    """Wait for a previously started Apify actor run to complete and return its results.
+    Use this instead of calling apify_actor_collect in a loop — a single call waits
+    internally without repeated tool invocations, so loop detection never fires.
+
+    Args:
+        run_id: The run ID returned by apify_actor_start.
+        dataset_id: The dataset ID returned by apify_actor_start.
+        label: Optional label to include in the response for identification.
+    """
+    if not run_id:
+        return "Error: run_id must not be empty"
+
+    config = get_app_config().get_tool_config("apify_actor_await")
+    poll_interval_secs = 5
+    timeout_secs = 300
+    max_items = 50
+    if config is not None:
+        poll_interval_secs = config.model_extra.get("poll_interval_secs", poll_interval_secs)
+        timeout_secs = config.model_extra.get("timeout_secs", timeout_secs)
+        max_items = config.model_extra.get("max_items", max_items)
+
+    client = _get_apify_client("apify_actor_await")
+    writer = get_stream_writer()
+
+    loop = asyncio.get_event_loop()
+    start_time = loop.time()
+    deadline = start_time + timeout_secs
+
+    writer({"type": "apify_run_polling", "runId": run_id, "status": "WAITING", "elapsed_secs": 0})
+
+    try:
+        while loop.time() < deadline:
+            run = client.run(run_id).get()
+            if not run:
+                return json.dumps({"runId": run_id, "error": "Run not found"}, ensure_ascii=False)
+
+            status = run.get("status", "")
+            elapsed = int(loop.time() - start_time)
+
+            if status in TERMINAL_STATUSES:
+                if status != "SUCCEEDED":
+                    writer({"type": "apify_run_failed", "runId": run_id, "status": status, "elapsed_secs": elapsed})
+                    entry: dict = {"runId": run_id, "status": status, "error": f"Run {status.lower()}"}
+                    if label:
+                        entry["label"] = label
+                    return json.dumps(entry, indent=2, ensure_ascii=False)
+
+                # Use the fresh run's dataset ID in case it differs from the one passed in
+                resolved_dataset_id = run.get("defaultDatasetId") or dataset_id
+                items = list(client.dataset(resolved_dataset_id).iterate_items(limit=max_items))
+                writer({"type": "apify_run_completed", "runId": run_id, "status": "SUCCEEDED", "elapsed_secs": elapsed, "resultCount": len(items)})
+                entry = {"runId": run_id, "status": "SUCCEEDED", "resultCount": len(items), "results": items}
+                if label:
+                    entry["label"] = label
+                return json.dumps(entry, indent=2, ensure_ascii=False)
+
+            writer({"type": "apify_run_polling", "runId": run_id, "status": status, "elapsed_secs": elapsed})
+            await asyncio.sleep(poll_interval_secs)
+
+    except asyncio.CancelledError:
+        writer({"type": "apify_run_cancelled", "runId": run_id})
+        raise
+
+    elapsed = int(loop.time() - start_time)
+    entry = {"runId": run_id, "error": f"Run did not complete within {timeout_secs}s", "status": "TIMED_OUT"}
+    if label:
+        entry["label"] = label
+    return json.dumps(entry, indent=2, ensure_ascii=False)

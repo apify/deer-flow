@@ -451,6 +451,13 @@ tools:
   #   use: deerflow.community.apify.tools:apify_actor_collect_tool
   #   max_items: 50
   #   api_key: $APIFY_API_TOKEN
+  # - name: apify_actor_await
+  #   group: web
+  #   use: deerflow.community.apify.tools:apify_actor_await_tool
+  #   poll_interval_secs: 5   # seconds between Apify API status checks
+  #   timeout_secs: 300       # give up after this many seconds (default 5 min)
+  #   max_items: 50
+  #   api_key: $APIFY_API_TOKEN
 
   # Image search tool (uses DuckDuckGo)
   # Use this to find reference images before image generation
