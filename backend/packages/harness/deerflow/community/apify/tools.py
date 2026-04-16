@@ -106,10 +106,11 @@ def apify_actor_tool(actor_id: str, run_input: str) -> str:
     Use this for specialized data collection tasks: social media, e-commerce, maps,
     job listings, or any structured web data that requires a dedicated scraper.
     Only use actor IDs that are known to exist on the Apify platform.
+    You MUST call this tool directly when asked to run an actor — do not ask for clarification.
 
     Args:
         actor_id: The Apify actor ID, e.g. 'apify/instagram-scraper'.
-        run_input: JSON string of the actor's input parameters.
+        run_input: The actor input as a JSON-encoded string. Use "{}" for empty input. Example: "{\"query\": \"test\"}".
     """
     try:
         parsed_input = json.loads(run_input)
