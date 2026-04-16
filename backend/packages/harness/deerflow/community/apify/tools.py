@@ -98,3 +98,39 @@ def web_fetch_tool(url: str) -> str:
         return f"# {title}\n\n{truncated}{suffix}"
     except Exception as e:
         return f"Error: {str(e)}"
+
+
+@tool("apify_run_actor", parse_docstring=True)
+def apify_actor_tool(actor_id: str, run_input: str) -> str:
+    """Run any Apify actor and return its dataset output as JSON.
+    Use this for specialized data collection tasks: social media, e-commerce, maps,
+    job listings, or any structured web data that requires a dedicated scraper.
+    Only use actor IDs that are known to exist on the Apify platform.
+
+    Args:
+        actor_id: The Apify actor ID, e.g. 'apify/instagram-scraper'.
+        run_input: JSON string of the actor's input parameters.
+    """
+    try:
+        parsed_input = json.loads(run_input)
+    except json.JSONDecodeError as e:
+        return f"Error: run_input is not valid JSON — {str(e)}"
+
+    try:
+        config = get_app_config().get_tool_config("apify_run_actor")
+        max_items = 50
+        timeout_secs = 120
+        if config is not None:
+            max_items = config.model_extra.get("max_items", max_items)
+            timeout_secs = config.model_extra.get("timeout_secs", timeout_secs)
+
+        client = _get_apify_client("apify_run_actor")
+        run = client.actor(actor_id).call(
+            run_input=parsed_input,
+            timeout_secs=timeout_secs,
+        )
+
+        items = list(client.dataset(run["defaultDatasetId"]).iterate_items(limit=max_items))
+        return json.dumps(items, indent=2, ensure_ascii=False)
+    except Exception as e:
+        return f"Error: {str(e)}"

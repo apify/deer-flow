@@ -425,6 +425,15 @@ tools:
   #   crawler_type: cheerio
   #   api_key: $APIFY_API_TOKEN
 
+  # Generic Apify actor runner — call any Apify actor by ID (requires APIFY_API_TOKEN)
+  # The agent passes actor_id and run_input (JSON string) at runtime.
+  # - name: apify_run_actor
+  #   group: web
+  #   use: deerflow.community.apify.tools:apify_actor_tool
+  #   max_items: 50
+  #   timeout_secs: 120
+  #   api_key: $APIFY_API_TOKEN
+
   # Image search tool (uses DuckDuckGo)
   # Use this to find reference images before image generation
   - name: image_search

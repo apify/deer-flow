@@ -256,3 +256,121 @@ class TestWebFetchTool:
         mock_apify_cls.return_value.actor.return_value.call.assert_called_once_with(
             run_input={"startUrls": [{"url": "https://example.com"}], "maxCrawlPages": 1, "crawlerType": "cheerio"}
         )
+
+
+class TestApifyActorTool:
+    @patch("deerflow.community.apify.tools.ApifyClient")
+    @patch("deerflow.community.apify.tools.get_app_config")
+    def test_calls_actor_with_parsed_input(self, mock_get_app_config, mock_apify_cls):
+        mock_get_app_config.return_value.get_tool_config.return_value = None
+
+        mock_run = {"defaultDatasetId": "dataset-123"}
+        mock_apify_cls.return_value.actor.return_value.call.return_value = mock_run
+        mock_apify_cls.return_value.dataset.return_value.iterate_items.return_value = iter([])
+
+        from deerflow.community.apify.tools import apify_actor_tool
+
+        apify_actor_tool.invoke({"actor_id": "apify/instagram-scraper", "run_input": '{"username": "apify"}'})
+
+        mock_apify_cls.return_value.actor.assert_called_once_with("apify/instagram-scraper")
+        mock_apify_cls.return_value.actor.return_value.call.assert_called_once_with(
+            run_input={"username": "apify"},
+            timeout_secs=120,
+        )
+
+    @patch("deerflow.community.apify.tools.ApifyClient")
+    @patch("deerflow.community.apify.tools.get_app_config")
+    def test_returns_dataset_items_as_json(self, mock_get_app_config, mock_apify_cls):
+        mock_get_app_config.return_value.get_tool_config.return_value = None
+
+        mock_run = {"defaultDatasetId": "dataset-123"}
+        mock_apify_cls.return_value.actor.return_value.call.return_value = mock_run
+        mock_apify_cls.return_value.dataset.return_value.iterate_items.return_value = iter([
+            {"id": "1", "name": "Alice"},
+            {"id": "2", "name": "Bob"},
+        ])
+
+        from deerflow.community.apify.tools import apify_actor_tool
+
+        result = apify_actor_tool.invoke({"actor_id": "some/actor", "run_input": "{}"})
+
+        assert json.loads(result) == [{"id": "1", "name": "Alice"}, {"id": "2", "name": "Bob"}]
+
+    @patch("deerflow.community.apify.tools.ApifyClient")
+    @patch("deerflow.community.apify.tools.get_app_config")
+    def test_caps_items_at_max_items(self, mock_get_app_config, mock_apify_cls):
+        actor_config = MagicMock()
+        actor_config.model_extra = {"max_items": 3, "timeout_secs": 60}
+        mock_get_app_config.return_value.get_tool_config.return_value = actor_config
+
+        mock_run = {"defaultDatasetId": "dataset-123"}
+        mock_apify_cls.return_value.actor.return_value.call.return_value = mock_run
+        mock_apify_cls.return_value.dataset.return_value.iterate_items.return_value = iter([])
+
+        from deerflow.community.apify.tools import apify_actor_tool
+
+        apify_actor_tool.invoke({"actor_id": "some/actor", "run_input": "{}"})
+
+        mock_apify_cls.return_value.dataset.return_value.iterate_items.assert_called_once_with(limit=3)
+
+    @patch("deerflow.community.apify.tools.ApifyClient")
+    @patch("deerflow.community.apify.tools.get_app_config")
+    def test_invalid_json_run_input(self, mock_get_app_config, mock_apify_cls):
+        mock_get_app_config.return_value.get_tool_config.return_value = None
+
+        from deerflow.community.apify.tools import apify_actor_tool
+
+        result = apify_actor_tool.invoke({"actor_id": "some/actor", "run_input": "not json {"})
+
+        assert result.startswith("Error: run_input is not valid JSON")
+
+    @patch("deerflow.community.apify.tools.ApifyClient")
+    @patch("deerflow.community.apify.tools.get_app_config")
+    def test_uses_timeout_secs_from_config(self, mock_get_app_config, mock_apify_cls):
+        actor_config = MagicMock()
+        actor_config.model_extra = {"max_items": 50, "timeout_secs": 60}
+        mock_get_app_config.return_value.get_tool_config.return_value = actor_config
+
+        mock_run = {"defaultDatasetId": "dataset-123"}
+        mock_apify_cls.return_value.actor.return_value.call.return_value = mock_run
+        mock_apify_cls.return_value.dataset.return_value.iterate_items.return_value = iter([])
+
+        from deerflow.community.apify.tools import apify_actor_tool
+
+        apify_actor_tool.invoke({"actor_id": "some/actor", "run_input": "{}"})
+
+        mock_apify_cls.return_value.actor.return_value.call.assert_called_once_with(
+            run_input={},
+            timeout_secs=60,
+        )
+
+    @patch("deerflow.community.apify.tools.ApifyClient")
+    @patch("deerflow.community.apify.tools.get_app_config")
+    def test_returns_error_string_on_exception(self, mock_get_app_config, mock_apify_cls):
+        mock_get_app_config.return_value.get_tool_config.return_value = None
+        mock_apify_cls.return_value.actor.return_value.call.side_effect = RuntimeError("actor failed")
+
+        from deerflow.community.apify.tools import apify_actor_tool
+
+        result = apify_actor_tool.invoke({"actor_id": "some/actor", "run_input": "{}"})
+
+        assert result.startswith("Error:")
+
+    @patch("deerflow.community.apify.tools.ApifyClient")
+    @patch("deerflow.community.apify.tools.get_app_config")
+    def test_uses_defaults_when_config_is_none(self, mock_get_app_config, mock_apify_cls):
+        mock_get_app_config.return_value.get_tool_config.return_value = None
+
+        mock_run = {"defaultDatasetId": "dataset-123"}
+        mock_apify_cls.return_value.actor.return_value.call.return_value = mock_run
+        mock_apify_cls.return_value.dataset.return_value.iterate_items.return_value = iter([])
+
+        from deerflow.community.apify.tools import apify_actor_tool
+
+        apify_actor_tool.invoke({"actor_id": "some/actor", "run_input": "{}"})
+
+        mock_apify_cls.return_value.actor.return_value.call.assert_called_once_with(
+            run_input={},
+            timeout_secs=120,
+        )
+        mock_apify_cls.return_value.dataset.return_value.iterate_items.assert_called_once_with(limit=50)
