@@ -379,6 +379,13 @@ tools:
   #   max_results: 5
   #   # api_key: $FIRECRAWL_API_KEY
 
+  # Web search tool (uses Apify Google Search Scraper, requires APIFY_API_TOKEN)
+  # - name: web_search
+  #   group: web
+  #   use: deerflow.community.apify.tools:web_search_tool
+  #   max_results: 5
+  #   api_key: $APIFY_API_TOKEN
+
   # Web fetch tool (uses Exa)
   # NOTE: Only one web_fetch provider can be active at a time.
   # Comment out the Jina AI web_fetch entry below before enabling this one.
@@ -409,6 +416,14 @@ tools:
   #   group: web
   #   use: deerflow.community.firecrawl.tools:web_fetch_tool
   #   # api_key: $FIRECRAWL_API_KEY
+
+  # Web fetch tool (uses Apify Website Content Crawler, requires APIFY_API_TOKEN)
+  # crawler_type options: "cheerio" (fast, no JS), "playwright:firefox" (JS-heavy pages)
+  # - name: web_fetch
+  #   group: web
+  #   use: deerflow.community.apify.tools:web_fetch_tool
+  #   crawler_type: cheerio
+  #   api_key: $APIFY_API_TOKEN
 
   # Image search tool (uses DuckDuckGo)
   # Use this to find reference images before image generation
