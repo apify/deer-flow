@@ -425,16 +425,7 @@ tools:
   #   crawler_type: cheerio
   #   api_key: $APIFY_API_TOKEN
 
-  # Generic Apify actor runner — call any Apify actor by ID (requires APIFY_API_TOKEN)
-  # The agent passes actor_id and run_input (JSON string) at runtime.
-  # - name: apify_run_actor
-  #   group: web
-  #   use: deerflow.community.apify.tools:apify_actor_tool
-  #   max_items: 50
-  #   timeout_secs: 120
-  #   api_key: $APIFY_API_TOKEN
-
-  # Apify async actor tools — discover/start/collect pattern for parallel actor runs
+  # Apify async actor tools — discover/start/await pattern for parallel actor runs
   # - name: apify_actor_discover
   #   group: web
   #   use: deerflow.community.apify.tools:apify_actor_discover_tool
@@ -445,11 +436,6 @@ tools:
   #   use: deerflow.community.apify.tools:apify_actor_start_tool
   #   # timeout_secs: 3600   # optional: override Apify platform default
   #   # memory_mbytes: 1024  # optional: override Apify platform default
-  #   api_key: $APIFY_API_TOKEN
-  # - name: apify_actor_collect
-  #   group: web
-  #   use: deerflow.community.apify.tools:apify_actor_collect_tool
-  #   max_items: 50
   #   api_key: $APIFY_API_TOKEN
   # - name: apify_actor_await
   #   group: web

@@ -280,7 +280,7 @@ async def apify_actor_await_tool(run_id: str, dataset_id: str, description: str 
 
     try:
         while loop.time() < deadline:
-            run = await loop.run_in_executor(None, lambda: client.run(run_id).get())
+            run = await asyncio.to_thread(client.run(run_id).get)
             elapsed = int(loop.time() - start_time)
 
             if not run:
@@ -302,7 +302,7 @@ async def apify_actor_await_tool(run_id: str, dataset_id: str, description: str 
 
                 # Use the fresh run's dataset ID in case it differs from the one passed in
                 resolved_dataset_id = run.get("defaultDatasetId") or dataset_id
-                items = await loop.run_in_executor(None, lambda: list(client.dataset(resolved_dataset_id).iterate_items(limit=max_items)))
+                items = await asyncio.to_thread(lambda: list(client.dataset(resolved_dataset_id).iterate_items(limit=max_items)))
                 writer({"type": "apify_run_completed", "runId": run_id, "status": "SUCCEEDED", "elapsed_secs": elapsed, "resultCount": len(items)})
                 entry = {"runId": run_id, "status": "SUCCEEDED", "resultCount": len(items), "results": items}
                 if description:
