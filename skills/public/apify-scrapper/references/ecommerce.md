@@ -44,26 +44,28 @@ Scrapes Booking.com hotel listings: name, price, rating, location, amenities, av
 ```json
 {
   "startUrls": [
-    {"url": "https://www.booking.com/searchresults.html?ss=<DESTINATION>"}
+    {"url": "https://www.booking.com/searchresults.html?ss=<DESTINATION>&checkin=<YYYY-MM-DD>&checkout=<YYYY-MM-DD>&group_adults=2"}
   ],
   "maxItems": 20
 }
 ```
 
+**Note:** If the user provides a copied Booking.com URL from their browser, use it directly. If only a destination is given, construct the URL with `ss=<destination>`. Checkin/checkout dates are optional but improve result quality — ask the user if relevant.
+
 ### Key Parameters
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| startUrls | array of objects | Booking.com search results URL. Build the URL by searching on booking.com and copying the results page URL. |
+| startUrls | array of objects | Booking.com search results URL |
 | maxItems | integer | Max hotels to return |
 
 ### Example
 
-User: "Find hotels in Prague on Booking.com"
+User: "Find hotels in Prague on Booking.com for June 1–7, 2 adults"
 
 ```json
 {
-  "startUrls": [{"url": "https://www.booking.com/searchresults.html?ss=Prague"}],
+  "startUrls": [{"url": "https://www.booking.com/searchresults.html?ss=Prague&checkin=2025-06-01&checkout=2025-06-07&group_adults=2"}],
   "maxItems": 20
 }
 ```
@@ -92,9 +94,11 @@ Scrapes reviews from TripAdvisor for restaurants, hotels, and attractions.
 | startUrls | array of objects | Direct URL to a TripAdvisor restaurant, hotel, or attraction page |
 | maxItems | integer | Max reviews to return |
 
+**Note:** A direct TripAdvisor listing URL is required. If the user gives only a name/location, use `web_search` to find the TripAdvisor page URL first (e.g. search `"Cafe Savoy Prague TripAdvisor"`), then use that URL.
+
 ### Example
 
-User: "Get reviews for a restaurant on TripAdvisor"
+User: "Get reviews for Cafe Savoy in Prague on TripAdvisor"
 
 ```json
 {

@@ -32,10 +32,15 @@ Always use the exact actor IDs listed here. Load the reference file to get the i
 2. Load the reference file for that actor using `read_file`.
 3. Populate the input template with values from the user's request.
 4. Call `apify_actor_start` with the actor ID and populated input.
-5. Call `apify_actor_await` with the returned `runId` and `datasetId` to wait for results.
+5. Call `apify_actor_await` passing `run_id` (from `runs[0].runId`) and `dataset_id` (from `runs[0].datasetId`).
+6. If the result has `status: FAILED`, `ABORTED`, or `TIMED-OUT`, report the error to the user. Do not retry automatically.
 
-**Multiple parallel actors:** call `apify_actor_start` once per actor first, then call `apify_actor_await` for each run in sequence. The actors execute in parallel on Apify's side — sequential waiting still yields parallel execution time.
+**Multiple parallel actors:** call `apify_actor_start` once per actor first, then call `apify_actor_await` for each run in sequence.
 
 ## When to Fall Back to Discovery
 
-Only use `apify_actor_discover` when the task does not match any row above. In that case first read `references/actor-catalog.md` for the curated shortlist before falling back to a live store search.
+Only use `apify_actor_discover` when the task does not match any row above. In that case:
+1. Read `references/actor-catalog.md` for the curated shortlist.
+2. Pick the most specific actor ID.
+3. Call `apify_actor_discover` with `actor_id` (not `query`) to fetch that actor's input schema.
+4. Build the input from the schema, then proceed with `apify_actor_start`.

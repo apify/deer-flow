@@ -8,6 +8,9 @@ from langgraph.config import get_stream_writer
 
 from deerflow.config import get_app_config
 
+# Terminal statuses as returned by the Apify API (note: hyphen in "TIMED-OUT").
+# "TIMED_OUT" (underscore) is a separate local-poll sentinel used by this integration
+# when the actor is still running but our local timeout_secs deadline is exceeded.
 TERMINAL_STATUSES = {"SUCCEEDED", "FAILED", "ABORTED", "TIMED-OUT"}
 
 
@@ -16,9 +19,10 @@ def _get_apify_client(tool_name: str) -> ApifyClient:
     api_key = None
     if config is not None and "api_key" in config.model_extra:
         api_key = config.model_extra.get("api_key")
-    # Fall back to environment variable if not set in config
     if not api_key:
         api_key = os.environ.get("APIFY_API_TOKEN")
+    if not api_key:
+        raise ValueError("APIFY_API_TOKEN is not configured. Set it in config.yaml (api_key) or as the APIFY_API_TOKEN environment variable.")
     return ApifyClient(api_key)
 
 
@@ -38,7 +42,7 @@ def web_search_tool(query: str) -> str:
         client = _get_apify_client("web_search")
         run = client.actor("apify/google-search-scraper").call(
             run_input={
-                "queries": query,
+                "queries": [query],
                 "maxPagesPerQuery": 1,
                 "resultsPerPage": max_results,
             }
@@ -97,46 +101,15 @@ def web_fetch_tool(url: str) -> str:
         if not content:
             return "Error: No content found"
 
-        truncated = content[:4096]
-        suffix = "\n\n[Content truncated]" if len(content) > 4096 else ""
+        # Truncate on UTF-8 byte boundary to keep payload size predictable
+        encoded = content.encode("utf-8")
+        if len(encoded) > 4096:
+            truncated = encoded[:4096].decode("utf-8", errors="ignore")
+            suffix = "\n\n[Content truncated]"
+        else:
+            truncated = content
+            suffix = ""
         return f"# {title}\n\n{truncated}{suffix}"
-    except Exception as e:
-        return f"Error: {str(e)}"
-
-
-@tool("apify_run_actor", parse_docstring=True)
-def apify_actor_tool(actor_id: str, run_input: str) -> str:
-    """Run any Apify actor and return its dataset output as JSON.
-    Use this for specialized data collection tasks: social media, e-commerce, maps,
-    job listings, or any structured web data that requires a dedicated scraper.
-    Only use actor IDs that are known to exist on the Apify platform.
-    You MUST call this tool directly when asked to run an actor — do not ask for clarification.
-
-    Args:
-        actor_id: The Apify actor ID, e.g. 'apify/instagram-scraper'.
-        run_input: The actor input as a JSON-encoded string. Use "{}" for empty input. Example: "{\"query\": \"test\"}".
-    """
-    try:
-        parsed_input = json.loads(run_input)
-    except json.JSONDecodeError as e:
-        return f"Error: run_input is not valid JSON — {str(e)}"
-
-    try:
-        config = get_app_config().get_tool_config("apify_run_actor")
-        max_items = 50
-        timeout_secs = 120
-        if config is not None:
-            max_items = config.model_extra.get("max_items", max_items)
-            timeout_secs = config.model_extra.get("timeout_secs", timeout_secs)
-
-        client = _get_apify_client("apify_run_actor")
-        run = client.actor(actor_id).call(
-            run_input=parsed_input,
-            timeout_secs=timeout_secs,
-        )
-
-        items = list(client.dataset(run["defaultDatasetId"]).iterate_items(limit=max_items))
-        return json.dumps(items, indent=2, ensure_ascii=False)
     except Exception as e:
         return f"Error: {str(e)}"
 
@@ -149,7 +122,7 @@ def apify_actor_discover_tool(query: str = "", actor_id: str = "") -> str:
 
     Args:
         query: Search term to find actors in the Apify Store. E.g. 'instagram scraper'.
-        actor_id: Full actor ID to fetch its input schema. E.g. 'apify/instagram-scraper'.
+        actor_id: Actor ID to fetch its input schema. Accepts 'username/actor-name' (e.g. 'apify/instagram-scraper') or a plain ID (e.g. 'h7sDV53CddomktSi5').
     """
     if not query and not actor_id:
         return "Error: provide either query or actor_id, not neither"
@@ -183,9 +156,6 @@ def apify_actor_discover_tool(query: str = "", actor_id: str = "") -> str:
                 ensure_ascii=False,
             )
 
-        if not actor_id:
-            return "Error: actor_id must not be empty"
-
         actor = client.actor(actor_id).get()
         if not actor:
             return f"Error: actor '{actor_id}' not found"
@@ -194,8 +164,20 @@ def apify_actor_discover_tool(query: str = "", actor_id: str = "") -> str:
         try:
             versions = client.actor(actor_id).versions().list()
             if versions.items:
-                latest = versions.items[-1]
-                input_schema = latest.get("inputSchema")
+                latest_version_number = versions.items[-1].get("versionNumber")
+                if latest_version_number:
+                    version_detail = client.actor(actor_id).version(latest_version_number).get()
+                    raw_schema = version_detail.get("inputSchema") if version_detail else None
+                else:
+                    raw_schema = versions.items[-1].get("inputSchema")
+                # inputSchema may be stored as a JSON string; parse it to avoid double-encoding
+                if isinstance(raw_schema, str):
+                    try:
+                        input_schema = json.loads(raw_schema)
+                    except json.JSONDecodeError:
+                        input_schema = raw_schema
+                else:
+                    input_schema = raw_schema
         except Exception:
             pass  # input schema is best-effort
 
@@ -217,12 +199,12 @@ def apify_actor_discover_tool(query: str = "", actor_id: str = "") -> str:
 @tool("apify_actor_start", parse_docstring=True)
 def apify_actor_start_tool(actor_id: str, run_input: str, description: str = "") -> str:
     """Start an Apify actor run asynchronously and return a run reference immediately.
-    The actor runs in the background — use apify_actor_await with the returned runId and datasetId to wait for results.
+    The actor runs in the background — use apify_actor_await with the returned run_id and dataset_id to wait for results.
     To run multiple actors in parallel, call this tool once per actor, then call apify_actor_await for each run.
     You MUST call this tool directly when asked to start an actor — do not ask for clarification.
 
     Args:
-        actor_id: The Apify actor ID, e.g. 'apify/instagram-scraper'. Must not be empty.
+        actor_id: The Apify actor ID. Accepts 'username/actor-name' (e.g. 'apify/instagram-scraper') or a plain ID (e.g. 'h7sDV53CddomktSi5'). Must not be empty.
         run_input: The actor input as a JSON-encoded string. Use "{}" for no input. E.g. '{"query": "test"}'.
         description: Optional human-readable label for this run, e.g. 'Scraping TikTok profile @apify'.
     """
@@ -267,12 +249,12 @@ def apify_actor_start_tool(actor_id: str, run_input: str, description: str = "")
 @tool("apify_actor_await", parse_docstring=True)
 async def apify_actor_await_tool(run_id: str, dataset_id: str, description: str = "") -> str:
     """Wait for a previously started Apify actor run to complete and return its results.
-    Use this instead of calling apify_actor_collect in a loop — a single call waits
-    internally without repeated tool invocations, so loop detection never fires.
+    Polls the run status internally until it reaches a terminal state, streaming progress
+    events. A single call handles all polling — loop detection never fires.
 
     Args:
-        run_id: The run ID returned by apify_actor_start.
-        dataset_id: The dataset ID returned by apify_actor_start.
+        run_id: The run ID from apify_actor_start (runs[0].runId).
+        dataset_id: The dataset ID from apify_actor_start (runs[0].datasetId).
         description: Optional human-readable label for this run, e.g. 'Waiting for TikTok scraper'.
     """
     if not run_id:
@@ -298,17 +280,22 @@ async def apify_actor_await_tool(run_id: str, dataset_id: str, description: str 
 
     try:
         while loop.time() < deadline:
-            run = await loop.run_in_executor(None, client.run(run_id).get)
+            run = await loop.run_in_executor(None, lambda: client.run(run_id).get())
+            elapsed = int(loop.time() - start_time)
+
             if not run:
-                return json.dumps({"runId": run_id, "error": "Run not found"}, ensure_ascii=False)
+                writer({"type": "apify_run_failed", "runId": run_id, "status": "NOT_FOUND", "elapsed_secs": elapsed})
+                entry: dict = {"runId": run_id, "status": "NOT_FOUND", "error": "Run not found"}
+                if description:
+                    entry["description"] = description
+                return json.dumps(entry, ensure_ascii=False)
 
             status = run.get("status", "")
-            elapsed = int(loop.time() - start_time)
 
             if status in TERMINAL_STATUSES:
                 if status != "SUCCEEDED":
                     writer({"type": "apify_run_failed", "runId": run_id, "status": status, "elapsed_secs": elapsed})
-                    entry: dict = {"runId": run_id, "status": status, "error": f"Run {status.lower()}"}
+                    entry = {"runId": run_id, "status": status, "error": f"Run {status.lower()}"}
                     if description:
                         entry["description"] = description
                     return json.dumps(entry, indent=2, ensure_ascii=False)
@@ -328,6 +315,13 @@ async def apify_actor_await_tool(run_id: str, dataset_id: str, description: str 
     except asyncio.CancelledError:
         writer({"type": "apify_run_cancelled", "runId": run_id})
         raise
+    except Exception as e:
+        elapsed = int(loop.time() - start_time)
+        writer({"type": "apify_run_failed", "runId": run_id, "status": "ERROR", "elapsed_secs": elapsed})
+        entry = {"runId": run_id, "status": "ERROR", "error": str(e)}
+        if description:
+            entry["description"] = description
+        return json.dumps(entry, indent=2, ensure_ascii=False)
 
     elapsed = int(loop.time() - start_time)
     entry = {"runId": run_id, "error": f"Run did not complete within {timeout_secs}s", "status": "TIMED_OUT"}
