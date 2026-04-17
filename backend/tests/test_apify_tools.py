@@ -20,9 +20,7 @@ class TestWebSearchTool:
 
         mock_run = {"defaultDatasetId": "dataset-123"}
         mock_apify_cls.return_value.actor.return_value.call.return_value = mock_run
-        mock_apify_cls.return_value.dataset.return_value.iterate_items.return_value = iter([
-            {"organicResults": [{"title": "T", "url": "https://example.com", "description": "S"}]}
-        ])
+        mock_apify_cls.return_value.dataset.return_value.iterate_items.return_value = iter([{"organicResults": [{"title": "T", "url": "https://example.com", "description": "S"}]}])
 
         from deerflow.community.apify.tools import web_search_tool
 
@@ -37,17 +35,13 @@ class TestWebSearchTool:
 
         mock_run = {"defaultDatasetId": "dataset-123"}
         mock_apify_cls.return_value.actor.return_value.call.return_value = mock_run
-        mock_apify_cls.return_value.dataset.return_value.iterate_items.return_value = iter([
-            {"organicResults": []}
-        ])
+        mock_apify_cls.return_value.dataset.return_value.iterate_items.return_value = iter([{"organicResults": []}])
 
         from deerflow.community.apify.tools import web_search_tool
 
         web_search_tool.invoke({"query": "test"})
 
-        mock_apify_cls.return_value.actor.return_value.call.assert_called_once_with(
-            run_input={"queries": ["test"], "maxPagesPerQuery": 1, "resultsPerPage": 7}
-        )
+        mock_apify_cls.return_value.actor.return_value.call.assert_called_once_with(run_input={"queries": ["test"], "maxPagesPerQuery": 1, "resultsPerPage": 7})
 
     @patch("deerflow.community.apify.tools.ApifyClient")
     @patch("deerflow.community.apify.tools.get_app_config")
@@ -56,9 +50,7 @@ class TestWebSearchTool:
 
         mock_run = {"defaultDatasetId": "dataset-123"}
         mock_apify_cls.return_value.actor.return_value.call.return_value = mock_run
-        mock_apify_cls.return_value.dataset.return_value.iterate_items.return_value = iter([
-            {"organicResults": []}
-        ])
+        mock_apify_cls.return_value.dataset.return_value.iterate_items.return_value = iter([{"organicResults": []}])
 
         from deerflow.community.apify.tools import web_search_tool
 
@@ -86,9 +78,7 @@ class TestWebSearchTool:
         mock_run = {"defaultDatasetId": "dataset-123"}
         mock_apify_cls.return_value.actor.return_value.call.return_value = mock_run
         organic = [{"title": f"T{i}", "url": f"https://example.com/{i}", "description": "S"} for i in range(5)]
-        mock_apify_cls.return_value.dataset.return_value.iterate_items.return_value = iter([
-            {"organicResults": organic}
-        ])
+        mock_apify_cls.return_value.dataset.return_value.iterate_items.return_value = iter([{"organicResults": organic}])
 
         from deerflow.community.apify.tools import web_search_tool
 
@@ -104,17 +94,13 @@ class TestWebSearchTool:
 
         mock_run = {"defaultDatasetId": "dataset-123"}
         mock_apify_cls.return_value.actor.return_value.call.return_value = mock_run
-        mock_apify_cls.return_value.dataset.return_value.iterate_items.return_value = iter([
-            {"organicResults": []}
-        ])
+        mock_apify_cls.return_value.dataset.return_value.iterate_items.return_value = iter([{"organicResults": []}])
 
         from deerflow.community.apify.tools import web_search_tool
 
         web_search_tool.invoke({"query": "test"})
 
-        mock_apify_cls.return_value.actor.return_value.call.assert_called_once_with(
-            run_input={"queries": ["test"], "maxPagesPerQuery": 1, "resultsPerPage": 5}
-        )
+        mock_apify_cls.return_value.actor.return_value.call.assert_called_once_with(run_input={"queries": ["test"], "maxPagesPerQuery": 1, "resultsPerPage": 5})
 
 
 class TestWebFetchTool:
@@ -125,9 +111,7 @@ class TestWebFetchTool:
 
         mock_run = {"defaultDatasetId": "dataset-123"}
         mock_apify_cls.return_value.actor.return_value.call.return_value = mock_run
-        mock_apify_cls.return_value.dataset.return_value.iterate_items.return_value = iter([
-            {"title": "My Page", "markdown": "Hello world", "text": ""}
-        ])
+        mock_apify_cls.return_value.dataset.return_value.iterate_items.return_value = iter([{"title": "My Page", "markdown": "Hello world", "text": ""}])
 
         from deerflow.community.apify.tools import web_fetch_tool
 
@@ -142,17 +126,13 @@ class TestWebFetchTool:
 
         mock_run = {"defaultDatasetId": "dataset-123"}
         mock_apify_cls.return_value.actor.return_value.call.return_value = mock_run
-        mock_apify_cls.return_value.dataset.return_value.iterate_items.return_value = iter([
-            {"title": "Page", "markdown": "content", "text": ""}
-        ])
+        mock_apify_cls.return_value.dataset.return_value.iterate_items.return_value = iter([{"title": "Page", "markdown": "content", "text": ""}])
 
         from deerflow.community.apify.tools import web_fetch_tool
 
         web_fetch_tool.invoke({"url": "https://example.com"})
 
-        mock_apify_cls.return_value.actor.return_value.call.assert_called_once_with(
-            run_input={"startUrls": [{"url": "https://example.com"}], "maxCrawlPages": 1, "crawlerType": "playwright:firefox"}
-        )
+        mock_apify_cls.return_value.actor.return_value.call.assert_called_once_with(run_input={"startUrls": [{"url": "https://example.com"}], "maxCrawlPages": 1, "crawlerType": "playwright:firefox"})
 
     @patch("deerflow.community.apify.tools.ApifyClient")
     @patch("deerflow.community.apify.tools.get_app_config")
@@ -161,9 +141,7 @@ class TestWebFetchTool:
 
         mock_run = {"defaultDatasetId": "dataset-123"}
         mock_apify_cls.return_value.actor.return_value.call.return_value = mock_run
-        mock_apify_cls.return_value.dataset.return_value.iterate_items.return_value = iter([
-            {"title": "Page", "markdown": "", "text": "plain text fallback"}
-        ])
+        mock_apify_cls.return_value.dataset.return_value.iterate_items.return_value = iter([{"title": "Page", "markdown": "", "text": "plain text fallback"}])
 
         from deerflow.community.apify.tools import web_fetch_tool
 
@@ -194,9 +172,7 @@ class TestWebFetchTool:
         mock_run = {"defaultDatasetId": "dataset-123"}
         mock_apify_cls.return_value.actor.return_value.call.return_value = mock_run
         long_content = "x" * 5000
-        mock_apify_cls.return_value.dataset.return_value.iterate_items.return_value = iter([
-            {"title": "Page", "markdown": long_content, "text": ""}
-        ])
+        mock_apify_cls.return_value.dataset.return_value.iterate_items.return_value = iter([{"title": "Page", "markdown": long_content, "text": ""}])
 
         from deerflow.community.apify.tools import web_fetch_tool
 
@@ -204,7 +180,7 @@ class TestWebFetchTool:
 
         assert result.endswith("\n\n[Content truncated]")
         # Body is exactly 4096 bytes of ASCII content
-        body = result[len("# Page\n\n"):-len("\n\n[Content truncated]")]
+        body = result[len("# Page\n\n") : -len("\n\n[Content truncated]")]
         assert len(body.encode("utf-8")) <= 4096
 
     @patch("deerflow.community.apify.tools.ApifyClient")
@@ -214,9 +190,7 @@ class TestWebFetchTool:
 
         mock_run = {"defaultDatasetId": "dataset-123"}
         mock_apify_cls.return_value.actor.return_value.call.return_value = mock_run
-        mock_apify_cls.return_value.dataset.return_value.iterate_items.return_value = iter([
-            {"title": "Page", "markdown": "short content", "text": ""}
-        ])
+        mock_apify_cls.return_value.dataset.return_value.iterate_items.return_value = iter([{"title": "Page", "markdown": "short content", "text": ""}])
 
         from deerflow.community.apify.tools import web_fetch_tool
 
@@ -244,17 +218,13 @@ class TestWebFetchTool:
 
         mock_run = {"defaultDatasetId": "dataset-123"}
         mock_apify_cls.return_value.actor.return_value.call.return_value = mock_run
-        mock_apify_cls.return_value.dataset.return_value.iterate_items.return_value = iter([
-            {"title": "Page", "markdown": "content", "text": ""}
-        ])
+        mock_apify_cls.return_value.dataset.return_value.iterate_items.return_value = iter([{"title": "Page", "markdown": "content", "text": ""}])
 
         from deerflow.community.apify.tools import web_fetch_tool
 
         web_fetch_tool.invoke({"url": "https://example.com"})
 
-        mock_apify_cls.return_value.actor.return_value.call.assert_called_once_with(
-            run_input={"startUrls": [{"url": "https://example.com"}], "maxCrawlPages": 1, "crawlerType": "cheerio"}
-        )
+        mock_apify_cls.return_value.actor.return_value.call.assert_called_once_with(run_input={"startUrls": [{"url": "https://example.com"}], "maxCrawlPages": 1, "crawlerType": "cheerio"})
 
 
 class TestApifyActorDiscoverTool:
@@ -305,9 +275,7 @@ class TestApifyActorDiscoverTool:
         mock_versions = MagicMock()
         mock_versions.items = [{"versionNumber": "0.1"}]
         mock_apify_cls.return_value.actor.return_value.versions.return_value.list.return_value = mock_versions
-        mock_apify_cls.return_value.actor.return_value.version.return_value.get.return_value = {
-            "inputSchema": '{"type": "object", "properties": {}}'
-        }
+        mock_apify_cls.return_value.actor.return_value.version.return_value.get.return_value = {"inputSchema": '{"type": "object", "properties": {}}'}
 
         from deerflow.community.apify.tools import apify_actor_discover_tool
 
@@ -328,9 +296,7 @@ class TestApifyActorDiscoverTool:
         mock_versions = MagicMock()
         mock_versions.items = [{"versionNumber": "1.0"}]
         mock_apify_cls.return_value.actor.return_value.versions.return_value.list.return_value = mock_versions
-        mock_apify_cls.return_value.actor.return_value.version.return_value.get.return_value = {
-            "inputSchema": {"type": "object"}
-        }
+        mock_apify_cls.return_value.actor.return_value.version.return_value.get.return_value = {"inputSchema": {"type": "object"}}
 
         from deerflow.community.apify.tools import apify_actor_discover_tool
 
@@ -421,9 +387,7 @@ class TestApifyActorStartTool:
     @patch("deerflow.community.apify.tools.get_app_config")
     def test_returns_run_reference_in_array(self, mock_get_app_config, mock_apify_cls):
         mock_get_app_config.return_value.get_tool_config.return_value = _make_tool_config()
-        mock_apify_cls.return_value.actor.return_value.start.return_value = {
-            "id": "run-123", "defaultDatasetId": "ds-456", "status": "RUNNING"
-        }
+        mock_apify_cls.return_value.actor.return_value.start.return_value = {"id": "run-123", "defaultDatasetId": "ds-456", "status": "RUNNING"}
 
         from deerflow.community.apify.tools import apify_actor_start_tool
 
@@ -441,9 +405,7 @@ class TestApifyActorStartTool:
     @patch("deerflow.community.apify.tools.get_app_config")
     def test_description_included_when_provided(self, mock_get_app_config, mock_apify_cls):
         mock_get_app_config.return_value.get_tool_config.return_value = _make_tool_config()
-        mock_apify_cls.return_value.actor.return_value.start.return_value = {
-            "id": "run-123", "defaultDatasetId": "ds-456", "status": "RUNNING"
-        }
+        mock_apify_cls.return_value.actor.return_value.start.return_value = {"id": "run-123", "defaultDatasetId": "ds-456", "status": "RUNNING"}
 
         from deerflow.community.apify.tools import apify_actor_start_tool
 
@@ -455,9 +417,7 @@ class TestApifyActorStartTool:
     @patch("deerflow.community.apify.tools.get_app_config")
     def test_description_absent_when_not_provided(self, mock_get_app_config, mock_apify_cls):
         mock_get_app_config.return_value.get_tool_config.return_value = _make_tool_config()
-        mock_apify_cls.return_value.actor.return_value.start.return_value = {
-            "id": "run-123", "defaultDatasetId": "ds-456", "status": "RUNNING"
-        }
+        mock_apify_cls.return_value.actor.return_value.start.return_value = {"id": "run-123", "defaultDatasetId": "ds-456", "status": "RUNNING"}
 
         from deerflow.community.apify.tools import apify_actor_start_tool
 
@@ -469,9 +429,7 @@ class TestApifyActorStartTool:
     @patch("deerflow.community.apify.tools.get_app_config")
     def test_calls_start_not_call(self, mock_get_app_config, mock_apify_cls):
         mock_get_app_config.return_value.get_tool_config.return_value = _make_tool_config()
-        mock_apify_cls.return_value.actor.return_value.start.return_value = {
-            "id": "run-123", "defaultDatasetId": "ds-456", "status": "RUNNING"
-        }
+        mock_apify_cls.return_value.actor.return_value.start.return_value = {"id": "run-123", "defaultDatasetId": "ds-456", "status": "RUNNING"}
 
         from deerflow.community.apify.tools import apify_actor_start_tool
 
@@ -484,9 +442,7 @@ class TestApifyActorStartTool:
     @patch("deerflow.community.apify.tools.get_app_config")
     def test_uses_timeout_secs_from_config(self, mock_get_app_config, mock_apify_cls):
         mock_get_app_config.return_value.get_tool_config.return_value = _make_tool_config(timeout_secs=60)
-        mock_apify_cls.return_value.actor.return_value.start.return_value = {
-            "id": "run-123", "defaultDatasetId": "ds-456", "status": "RUNNING"
-        }
+        mock_apify_cls.return_value.actor.return_value.start.return_value = {"id": "run-123", "defaultDatasetId": "ds-456", "status": "RUNNING"}
 
         from deerflow.community.apify.tools import apify_actor_start_tool
 
@@ -499,9 +455,7 @@ class TestApifyActorStartTool:
     def test_no_timeout_when_not_in_config(self, mock_get_app_config, mock_apify_cls):
         # Omit timeout_secs and memory_mbytes to verify neither is forwarded to .start().
         mock_get_app_config.return_value.get_tool_config.return_value = _make_tool_config()
-        mock_apify_cls.return_value.actor.return_value.start.return_value = {
-            "id": "run-123", "defaultDatasetId": "ds-456", "status": "RUNNING"
-        }
+        mock_apify_cls.return_value.actor.return_value.start.return_value = {"id": "run-123", "defaultDatasetId": "ds-456", "status": "RUNNING"}
 
         from deerflow.community.apify.tools import apify_actor_start_tool
 
@@ -513,9 +467,7 @@ class TestApifyActorStartTool:
     @patch("deerflow.community.apify.tools.get_app_config")
     def test_uses_memory_mbytes_from_config(self, mock_get_app_config, mock_apify_cls):
         mock_get_app_config.return_value.get_tool_config.return_value = _make_tool_config(memory_mbytes=1024)
-        mock_apify_cls.return_value.actor.return_value.start.return_value = {
-            "id": "run-123", "defaultDatasetId": "ds-456", "status": "RUNNING"
-        }
+        mock_apify_cls.return_value.actor.return_value.start.return_value = {"id": "run-123", "defaultDatasetId": "ds-456", "status": "RUNNING"}
 
         from deerflow.community.apify.tools import apify_actor_start_tool
 
@@ -539,9 +491,7 @@ class TestApifyActorStartTool:
     def test_accepts_plain_actor_id(self, mock_get_app_config, mock_apify_cls):
         """Plain IDs like 'h7sDV53CddomktSi5' are valid — client accepts both formats."""
         mock_get_app_config.return_value.get_tool_config.return_value = _make_tool_config()
-        mock_apify_cls.return_value.actor.return_value.start.return_value = {
-            "id": "run-123", "defaultDatasetId": "ds-456", "status": "RUNNING"
-        }
+        mock_apify_cls.return_value.actor.return_value.start.return_value = {"id": "run-123", "defaultDatasetId": "ds-456", "status": "RUNNING"}
 
         from deerflow.community.apify.tools import apify_actor_start_tool
 
@@ -590,9 +540,7 @@ class TestApifyActorAwaitTool:
     @patch("deerflow.community.apify.tools.get_app_config")
     def test_returns_results_when_succeeded_immediately(self, mock_cfg, mock_apify_cls, mock_sleep, mock_writer):
         mock_cfg.return_value.get_tool_config.return_value = _make_tool_config()
-        mock_apify_cls.return_value.run.return_value.get.return_value = {
-            "status": "SUCCEEDED", "defaultDatasetId": "ds-1"
-        }
+        mock_apify_cls.return_value.run.return_value.get.return_value = {"status": "SUCCEEDED", "defaultDatasetId": "ds-1"}
         mock_apify_cls.return_value.dataset.return_value.iterate_items.return_value = iter([{"item": 1}])
         mock_writer.return_value = self._make_mock_writer()
 
@@ -655,9 +603,7 @@ class TestApifyActorAwaitTool:
     @patch("deerflow.community.apify.tools.get_app_config")
     def test_returns_error_when_failed(self, mock_cfg, mock_apify_cls, mock_sleep, mock_writer):
         mock_cfg.return_value.get_tool_config.return_value = _make_tool_config()
-        mock_apify_cls.return_value.run.return_value.get.return_value = {
-            "status": "FAILED", "defaultDatasetId": "ds-1"
-        }
+        mock_apify_cls.return_value.run.return_value.get.return_value = {"status": "FAILED", "defaultDatasetId": "ds-1"}
         mock_writer.return_value = self._make_mock_writer()
 
         from deerflow.community.apify.tools import apify_actor_await_tool
@@ -674,9 +620,7 @@ class TestApifyActorAwaitTool:
     @patch("deerflow.community.apify.tools.get_app_config")
     def test_returns_error_when_aborted(self, mock_cfg, mock_apify_cls, mock_sleep, mock_writer):
         mock_cfg.return_value.get_tool_config.return_value = _make_tool_config()
-        mock_apify_cls.return_value.run.return_value.get.return_value = {
-            "status": "ABORTED", "defaultDatasetId": "ds-1"
-        }
+        mock_apify_cls.return_value.run.return_value.get.return_value = {"status": "ABORTED", "defaultDatasetId": "ds-1"}
         mock_writer.return_value = self._make_mock_writer()
 
         from deerflow.community.apify.tools import apify_actor_await_tool
@@ -694,9 +638,7 @@ class TestApifyActorAwaitTool:
     def test_returns_error_when_apify_timed_out(self, mock_cfg, mock_apify_cls, mock_sleep, mock_writer):
         """TIMED-OUT (hyphen) is an Apify API terminal status — distinct from our local TIMED_OUT."""
         mock_cfg.return_value.get_tool_config.return_value = _make_tool_config()
-        mock_apify_cls.return_value.run.return_value.get.return_value = {
-            "status": "TIMED-OUT", "defaultDatasetId": "ds-1"
-        }
+        mock_apify_cls.return_value.run.return_value.get.return_value = {"status": "TIMED-OUT", "defaultDatasetId": "ds-1"}
         mock_writer.return_value = self._make_mock_writer()
 
         from deerflow.community.apify.tools import apify_actor_await_tool
@@ -713,9 +655,7 @@ class TestApifyActorAwaitTool:
     @patch("deerflow.community.apify.tools.get_app_config")
     def test_description_included_on_succeeded(self, mock_cfg, mock_apify_cls, mock_sleep, mock_writer):
         mock_cfg.return_value.get_tool_config.return_value = _make_tool_config()
-        mock_apify_cls.return_value.run.return_value.get.return_value = {
-            "status": "SUCCEEDED", "defaultDatasetId": "ds-1"
-        }
+        mock_apify_cls.return_value.run.return_value.get.return_value = {"status": "SUCCEEDED", "defaultDatasetId": "ds-1"}
         mock_apify_cls.return_value.dataset.return_value.iterate_items.return_value = iter([])
         mock_writer.return_value = self._make_mock_writer()
 
@@ -731,9 +671,7 @@ class TestApifyActorAwaitTool:
     @patch("deerflow.community.apify.tools.get_app_config")
     def test_description_included_on_failed(self, mock_cfg, mock_apify_cls, mock_sleep, mock_writer):
         mock_cfg.return_value.get_tool_config.return_value = _make_tool_config()
-        mock_apify_cls.return_value.run.return_value.get.return_value = {
-            "status": "FAILED", "defaultDatasetId": "ds-1"
-        }
+        mock_apify_cls.return_value.run.return_value.get.return_value = {"status": "FAILED", "defaultDatasetId": "ds-1"}
         mock_writer.return_value = self._make_mock_writer()
 
         from deerflow.community.apify.tools import apify_actor_await_tool
@@ -796,9 +734,7 @@ class TestApifyActorAwaitTool:
     def test_uses_fresh_dataset_id_from_run(self, mock_cfg, mock_apify_cls, mock_sleep, mock_writer):
         """Dataset ID from the fresh run object takes precedence over the passed-in value."""
         mock_cfg.return_value.get_tool_config.return_value = _make_tool_config()
-        mock_apify_cls.return_value.run.return_value.get.return_value = {
-            "status": "SUCCEEDED", "defaultDatasetId": "fresh-ds"
-        }
+        mock_apify_cls.return_value.run.return_value.get.return_value = {"status": "SUCCEEDED", "defaultDatasetId": "fresh-ds"}
         mock_apify_cls.return_value.dataset.return_value.iterate_items.return_value = iter([])
         mock_writer.return_value = self._make_mock_writer()
 
@@ -814,9 +750,7 @@ class TestApifyActorAwaitTool:
     @patch("deerflow.community.apify.tools.get_app_config")
     def test_uses_config_values(self, mock_cfg, mock_apify_cls, mock_sleep, mock_writer):
         mock_cfg.return_value.get_tool_config.return_value = _make_tool_config(poll_interval_secs=10, timeout_secs=60, max_items=5)
-        mock_apify_cls.return_value.run.return_value.get.return_value = {
-            "status": "SUCCEEDED", "defaultDatasetId": "ds-1"
-        }
+        mock_apify_cls.return_value.run.return_value.get.return_value = {"status": "SUCCEEDED", "defaultDatasetId": "ds-1"}
         mock_apify_cls.return_value.dataset.return_value.iterate_items.return_value = iter([])
         mock_writer.return_value = self._make_mock_writer()
 
@@ -882,9 +816,7 @@ class TestApifyActorAwaitTool:
         condition is evaluated, real time has advanced past it, so the tool returns
         TIMED_OUT without needing to patch the event loop."""
         mock_cfg.return_value.get_tool_config.return_value = _make_tool_config(poll_interval_secs=0, timeout_secs=0, max_items=50)
-        mock_apify_cls.return_value.run.return_value.get.return_value = {
-            "status": "RUNNING", "defaultDatasetId": "ds-1"
-        }
+        mock_apify_cls.return_value.run.return_value.get.return_value = {"status": "RUNNING", "defaultDatasetId": "ds-1"}
         mock_writer.return_value = self._make_mock_writer()
 
         from deerflow.community.apify.tools import apify_actor_await_tool
@@ -900,9 +832,7 @@ class TestApifyActorAwaitTool:
     @patch("deerflow.community.apify.tools.get_app_config")
     def test_streams_failure_event(self, mock_cfg, mock_apify_cls, mock_sleep, mock_writer):
         mock_cfg.return_value.get_tool_config.return_value = _make_tool_config()
-        mock_apify_cls.return_value.run.return_value.get.return_value = {
-            "status": "FAILED", "defaultDatasetId": "ds-1"
-        }
+        mock_apify_cls.return_value.run.return_value.get.return_value = {"status": "FAILED", "defaultDatasetId": "ds-1"}
         writer_fn = self._make_mock_writer()
         mock_writer.return_value = writer_fn
 
@@ -919,9 +849,7 @@ class TestApifyActorAwaitTool:
     @patch("deerflow.community.apify.tools.get_app_config")
     def test_returns_empty_results_when_dataset_empty(self, mock_cfg, mock_apify_cls, mock_sleep, mock_writer):
         mock_cfg.return_value.get_tool_config.return_value = _make_tool_config()
-        mock_apify_cls.return_value.run.return_value.get.return_value = {
-            "status": "SUCCEEDED", "defaultDatasetId": "ds-1"
-        }
+        mock_apify_cls.return_value.run.return_value.get.return_value = {"status": "SUCCEEDED", "defaultDatasetId": "ds-1"}
         mock_apify_cls.return_value.dataset.return_value.iterate_items.return_value = iter([])
         mock_writer.return_value = self._make_mock_writer()
 

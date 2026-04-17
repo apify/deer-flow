@@ -380,6 +380,8 @@ tools:
   #   # api_key: $FIRECRAWL_API_KEY
 
   # Web search tool (uses Apify Google Search Scraper, requires APIFY_API_TOKEN)
+  # NOTE: Only one web_search provider can be active at a time.
+  # Comment out the Tavily/Jina/other web_search entry above before enabling this one.
   # - name: web_search
   #   group: web
   #   use: deerflow.community.apify.tools:web_search_tool
@@ -418,6 +420,8 @@ tools:
   #   # api_key: $FIRECRAWL_API_KEY
 
   # Web fetch tool (uses Apify Website Content Crawler, requires APIFY_API_TOKEN)
+  # NOTE: Only one web_fetch provider can be active at a time.
+  # Comment out the Jina AI/other web_fetch entry above before enabling this one.
   # crawler_type options: "cheerio" (fast, no JS), "playwright:firefox" (JS-heavy pages)
   # - name: web_fetch
   #   group: web

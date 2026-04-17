@@ -145,11 +145,13 @@ def apify_actor_discover_tool(query: str = "", actor_id: str = "") -> str:
                 name = a.get("name") or ""
                 if not username or not name:
                     continue
-                actors.append({
-                    "actorId": f"{username}/{name}",
-                    "title": a.get("title") or "",
-                    "description": (a.get("description") or "")[:200],
-                })
+                actors.append(
+                    {
+                        "actorId": f"{username}/{name}",
+                        "title": a.get("title") or "",
+                        "description": (a.get("description") or "")[:200],
+                    }
+                )
             return json.dumps(
                 {"action": "store_search", "query": query, "count": len(actors), "actors": actors},
                 indent=2,
