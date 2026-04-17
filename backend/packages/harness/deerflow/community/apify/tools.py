@@ -215,7 +215,7 @@ def apify_actor_discover_tool(query: str = "", actor_id: str = "") -> str:
 
 
 @tool("apify_actor_start", parse_docstring=True)
-def apify_actor_start_tool(actor_id: str, run_input: str, label: str = "") -> str:
+def apify_actor_start_tool(actor_id: str, run_input: str, description: str = "") -> str:
     """Start an Apify actor run asynchronously and return a run reference immediately.
     The actor runs in the background — use apify_actor_await with the returned runId and datasetId to wait for results.
     To run multiple actors in parallel, call this tool once per actor, then call apify_actor_await for each run.
@@ -224,7 +224,7 @@ def apify_actor_start_tool(actor_id: str, run_input: str, label: str = "") -> st
     Args:
         actor_id: The Apify actor ID, e.g. 'apify/instagram-scraper'. Must not be empty.
         run_input: The actor input as a JSON-encoded string. Use "{}" for no input. E.g. '{"query": "test"}'.
-        label: Optional label to identify this run when collecting results from multiple runs.
+        description: Optional human-readable label for this run, e.g. 'Scraping TikTok profile @apify'.
     """
     if not actor_id:
         return "Error: actor_id must not be empty"
@@ -257,15 +257,15 @@ def apify_actor_start_tool(actor_id: str, run_input: str, label: str = "") -> st
             "datasetId": run["defaultDatasetId"],
             "status": run["status"],
         }
-        if label:
-            ref["label"] = label
+        if description:
+            ref["description"] = description
         return json.dumps({"action": "start", "runs": [ref]}, indent=2, ensure_ascii=False)
     except Exception as e:
         return f"Error: {str(e)}"
 
 
 @tool("apify_actor_await", parse_docstring=True)
-async def apify_actor_await_tool(run_id: str, dataset_id: str, label: str = "") -> str:
+async def apify_actor_await_tool(run_id: str, dataset_id: str, description: str = "") -> str:
     """Wait for a previously started Apify actor run to complete and return its results.
     Use this instead of calling apify_actor_collect in a loop — a single call waits
     internally without repeated tool invocations, so loop detection never fires.
@@ -273,7 +273,7 @@ async def apify_actor_await_tool(run_id: str, dataset_id: str, label: str = "") 
     Args:
         run_id: The run ID returned by apify_actor_start.
         dataset_id: The dataset ID returned by apify_actor_start.
-        label: Optional label to include in the response for identification.
+        description: Optional human-readable label for this run, e.g. 'Waiting for TikTok scraper'.
     """
     if not run_id:
         return "Error: run_id must not be empty"
@@ -309,8 +309,8 @@ async def apify_actor_await_tool(run_id: str, dataset_id: str, label: str = "") 
                 if status != "SUCCEEDED":
                     writer({"type": "apify_run_failed", "runId": run_id, "status": status, "elapsed_secs": elapsed})
                     entry: dict = {"runId": run_id, "status": status, "error": f"Run {status.lower()}"}
-                    if label:
-                        entry["label"] = label
+                    if description:
+                        entry["description"] = description
                     return json.dumps(entry, indent=2, ensure_ascii=False)
 
                 # Use the fresh run's dataset ID in case it differs from the one passed in
@@ -318,8 +318,8 @@ async def apify_actor_await_tool(run_id: str, dataset_id: str, label: str = "") 
                 items = await loop.run_in_executor(None, lambda: list(client.dataset(resolved_dataset_id).iterate_items(limit=max_items)))
                 writer({"type": "apify_run_completed", "runId": run_id, "status": "SUCCEEDED", "elapsed_secs": elapsed, "resultCount": len(items)})
                 entry = {"runId": run_id, "status": "SUCCEEDED", "resultCount": len(items), "results": items}
-                if label:
-                    entry["label"] = label
+                if description:
+                    entry["description"] = description
                 return json.dumps(entry, indent=2, ensure_ascii=False)
 
             writer({"type": "apify_run_polling", "runId": run_id, "status": status, "elapsed_secs": elapsed})
@@ -331,6 +331,6 @@ async def apify_actor_await_tool(run_id: str, dataset_id: str, label: str = "") 
 
     elapsed = int(loop.time() - start_time)
     entry = {"runId": run_id, "error": f"Run did not complete within {timeout_secs}s", "status": "TIMED_OUT"}
-    if label:
-        entry["label"] = label
+    if description:
+        entry["description"] = description
     return json.dumps(entry, indent=2, ensure_ascii=False)

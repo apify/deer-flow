@@ -516,7 +516,7 @@ class TestApifyActorStartTool:
 
     @patch("deerflow.community.apify.tools.ApifyClient")
     @patch("deerflow.community.apify.tools.get_app_config")
-    def test_label_included_when_provided(self, mock_get_app_config, mock_apify_cls):
+    def test_description_included_when_provided(self, mock_get_app_config, mock_apify_cls):
         mock_get_app_config.return_value.get_tool_config.return_value = None
         mock_apify_cls.return_value.actor.return_value.start.return_value = {
             "id": "run-123", "defaultDatasetId": "ds-456", "status": "RUNNING"
@@ -524,13 +524,13 @@ class TestApifyActorStartTool:
 
         from deerflow.community.apify.tools import apify_actor_start_tool
 
-        result = json.loads(apify_actor_start_tool.invoke({"actor_id": "apify/test", "run_input": "{}", "label": "my-run"}))
+        result = json.loads(apify_actor_start_tool.invoke({"actor_id": "apify/test", "run_input": "{}", "description": "my-run"}))
 
-        assert result["runs"][0]["label"] == "my-run"
+        assert result["runs"][0]["description"] == "my-run"
 
     @patch("deerflow.community.apify.tools.ApifyClient")
     @patch("deerflow.community.apify.tools.get_app_config")
-    def test_label_absent_when_not_provided(self, mock_get_app_config, mock_apify_cls):
+    def test_description_absent_when_not_provided(self, mock_get_app_config, mock_apify_cls):
         mock_get_app_config.return_value.get_tool_config.return_value = None
         mock_apify_cls.return_value.actor.return_value.start.return_value = {
             "id": "run-123", "defaultDatasetId": "ds-456", "status": "RUNNING"
@@ -540,7 +540,7 @@ class TestApifyActorStartTool:
 
         result = json.loads(apify_actor_start_tool.invoke({"actor_id": "apify/test", "run_input": "{}"}))
 
-        assert "label" not in result["runs"][0]
+        assert "description" not in result["runs"][0]
 
     @patch("deerflow.community.apify.tools.ApifyClient")
     @patch("deerflow.community.apify.tools.get_app_config")
@@ -747,7 +747,7 @@ class TestApifyActorAwaitTool:
     @patch("deerflow.community.apify.tools.asyncio.sleep", new_callable=AsyncMock)
     @patch("deerflow.community.apify.tools.ApifyClient")
     @patch("deerflow.community.apify.tools.get_app_config")
-    def test_label_included_when_provided(self, mock_cfg, mock_apify_cls, mock_sleep, mock_writer):
+    def test_description_included_when_provided(self, mock_cfg, mock_apify_cls, mock_sleep, mock_writer):
         mock_cfg.return_value.get_tool_config.return_value = None
         mock_apify_cls.return_value.run.return_value.get.return_value = {
             "status": "SUCCEEDED", "defaultDatasetId": "ds-1"
@@ -757,9 +757,9 @@ class TestApifyActorAwaitTool:
 
         from deerflow.community.apify.tools import apify_actor_await_tool
 
-        result = json.loads(self._run(apify_actor_await_tool.ainvoke({"run_id": "r1", "dataset_id": "ds-1", "label": "my-run"})))
+        result = json.loads(self._run(apify_actor_await_tool.ainvoke({"run_id": "r1", "dataset_id": "ds-1", "description": "my-run"})))
 
-        assert result["label"] == "my-run"
+        assert result["description"] == "my-run"
 
     @patch("deerflow.community.apify.tools.get_stream_writer")
     @patch("deerflow.community.apify.tools.asyncio.sleep", new_callable=AsyncMock)
