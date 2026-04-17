@@ -1,7 +1,6 @@
 import asyncio
 import json
 import os
-from concurrent.futures import ThreadPoolExecutor
 
 from apify_client import ApifyClient
 from langchain.tools import tool
@@ -265,108 +264,6 @@ def apify_actor_start_tool(actor_id: str, run_input: str, label: str = "") -> st
         return f"Error: {str(e)}"
 
 
-@tool("apify_actor_collect", parse_docstring=True)
-def apify_actor_collect_tool(runs: str) -> str:
-    """Check the status of previously started Apify actor runs and retrieve results for completed ones.
-    Pass the run references exactly as returned by apify_actor_start (the runs array).
-    Runs still in progress are returned with pending=true — call this tool again with those refs later.
-    All runs are polled in parallel.
-
-    Args:
-        runs: JSON string of an array of run references from apify_actor_start. E.g. '[{"runId":"...","actorId":"...","datasetId":"..."}]'.
-    """
-    try:
-        run_refs = json.loads(runs)
-    except json.JSONDecodeError as e:
-        return f"Error: runs is not valid JSON — {str(e)}"
-
-    if not isinstance(run_refs, list) or not run_refs:
-        return "Error: runs must be a non-empty JSON array of run references"
-
-    try:
-        config = get_app_config().get_tool_config("apify_actor_collect")
-        max_items = 50
-        if config is not None:
-            max_items = config.model_extra.get("max_items", max_items)
-
-        client = _get_apify_client("apify_actor_collect")
-
-        def _fetch_run(ref: dict) -> dict:
-            run_id = ref.get("runId", "")
-            actor_id = ref.get("actorId", "")
-            label = ref.get("label")
-
-            try:
-                run = client.run(run_id).get()
-                if not run:
-                    entry: dict = {"runId": run_id, "actorId": actor_id, "error": "Run not found"}
-                    if label:
-                        entry["label"] = label
-                    return entry
-
-                status = run.get("status", "")
-
-                if status not in TERMINAL_STATUSES:
-                    entry = {"runId": run_id, "actorId": actor_id, "status": status, "pending": True}
-                    if label:
-                        entry["label"] = label
-                    return entry
-
-                if status != "SUCCEEDED":
-                    entry = {"runId": run_id, "actorId": actor_id, "status": status, "error": f"Run {status.lower()}"}
-                    if label:
-                        entry["label"] = label
-                    return entry
-
-                dataset_id = run.get("defaultDatasetId", "")
-                items = list(client.dataset(dataset_id).iterate_items(limit=max_items))
-                entry = {
-                    "runId": run_id,
-                    "actorId": actor_id,
-                    "datasetId": dataset_id,
-                    "status": "SUCCEEDED",
-                    "resultCount": len(items),
-                    "results": items,
-                }
-                if label:
-                    entry["label"] = label
-                return entry
-
-            except Exception as exc:
-                entry = {"runId": run_id, "actorId": actor_id, "error": str(exc)}
-                if label:
-                    entry["label"] = label
-                return entry
-
-        max_workers = min(len(run_refs), 10)
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            results = list(executor.map(_fetch_run, run_refs))
-
-        errors = [r for r in results if "error" in r]
-        pending = [r for r in results if r.get("pending") and "error" not in r]
-        completed = [r for r in results if r.get("status") == "SUCCEEDED" and "error" not in r]
-        all_done = len(pending) == 0
-
-        parts = []
-        if completed:
-            parts.append(f"{len(completed)} completed")
-        if pending:
-            parts.append(f"{len(pending)} still running")
-        if errors:
-            parts.append(f"{len(errors)} failed")
-        message = ", ".join(parts) + "." if parts else "No runs processed."
-
-        response: dict = {"action": "collect", "allDone": all_done, "message": message, "completed": completed}
-        if pending:
-            response["pending"] = pending
-        if errors:
-            response["errors"] = errors
-
-        return json.dumps(response, indent=2, ensure_ascii=False)
-    except Exception as e:
-        return f"Error: {str(e)}"
-
-
 @tool("apify_actor_await", parse_docstring=True)
 async def apify_actor_await_tool(run_id: str, dataset_id: str, label: str = "") -> str:
     """Wait for a previously started Apify actor run to complete and return its results.
@@ -393,7 +290,7 @@ async def apify_actor_await_tool(run_id: str, dataset_id: str, label: str = "") 
     client = _get_apify_client("apify_actor_await")
     writer = get_stream_writer()
 
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     start_time = loop.time()
     deadline = start_time + timeout_secs
 
@@ -401,7 +298,7 @@ async def apify_actor_await_tool(run_id: str, dataset_id: str, label: str = "") 
 
     try:
         while loop.time() < deadline:
-            run = client.run(run_id).get()
+            run = await loop.run_in_executor(None, client.run(run_id).get)
             if not run:
                 return json.dumps({"runId": run_id, "error": "Run not found"}, ensure_ascii=False)
 
@@ -418,7 +315,7 @@ async def apify_actor_await_tool(run_id: str, dataset_id: str, label: str = "") 
 
                 # Use the fresh run's dataset ID in case it differs from the one passed in
                 resolved_dataset_id = run.get("defaultDatasetId") or dataset_id
-                items = list(client.dataset(resolved_dataset_id).iterate_items(limit=max_items))
+                items = await loop.run_in_executor(None, lambda: list(client.dataset(resolved_dataset_id).iterate_items(limit=max_items)))
                 writer({"type": "apify_run_completed", "runId": run_id, "status": "SUCCEEDED", "elapsed_secs": elapsed, "resultCount": len(items)})
                 entry = {"runId": run_id, "status": "SUCCEEDED", "resultCount": len(items), "results": items}
                 if label:
