@@ -22,7 +22,7 @@ def _get_apify_client(tool_name: str) -> ApifyClient:
     if not api_key:
         api_key = os.environ.get("APIFY_API_TOKEN")
     if not api_key:
-        raise ValueError("APIFY_API_TOKEN is not configured. Set it in config.yaml (api_key) or as the APIFY_API_TOKEN environment variable.")
+        raise ValueError(f"APIFY_API_TOKEN is not configured. Set it as tools[{tool_name}].api_key in config.yaml or as the APIFY_API_TOKEN environment variable.")
     return ApifyClient(api_key)
 
 
